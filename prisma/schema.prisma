@@ -1,0 +1,146 @@
+// Duo Gym App — data model
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Weekday {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+enum ScoreEventType {
+  STREAK_BONUS
+  MILESTONE_BONUS
+  MISSED_PENALTY
+  BUDDY_PENALTY
+}
+
+model User {
+  id           String  @id @default(cuid())
+  username     String  @unique
+  passwordHash String
+  displayName  String
+  timezone     String  @default("America/New_York")
+  avatarColor  String  @default("#7C5CFC")
+
+  gymScore      Int      @default(0)
+  currentStreak Int      @default(0)
+  longestStreak Int      @default(0)
+  lastEvaluatedDate DateTime? // watermark: missed-day evaluation has run through this date
+
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scheduleDays ScheduleDay[]
+  workoutLogs  WorkoutLog[]
+  scoreEvents  ScoreEvent[]
+  pairingCode  PairingCode?
+
+  pairAsUserA BuddyPair? @relation("PairA")
+  pairAsUserB BuddyPair? @relation("PairB")
+}
+
+model BuddyPair {
+  id        String   @id @default(cuid())
+  userAId   String   @unique
+  userBId   String   @unique
+  createdAt DateTime @default(now())
+
+  userA User @relation("PairA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("PairB", fields: [userBId], references: [id], onDelete: Cascade)
+}
+
+model PairingCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  userId    String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ScheduleDay {
+  id       String  @id @default(cuid())
+  userId   String
+  weekday  Weekday
+  isGymDay Boolean @default(true)
+  label    String?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises   Exercise[]
+  workoutLogs WorkoutLog[]
+
+  @@unique([userId, weekday])
+}
+
+model Exercise {
+  id            String  @id @default(cuid())
+  scheduleDayId String
+  name          String
+  order         Int     @default(0)
+  targetSets    Int     @default(3)
+  targetReps    Int     @default(10)
+  notes         String?
+
+  scheduleDay ScheduleDay @relation(fields: [scheduleDayId], references: [id], onDelete: Cascade)
+  setLogs     SetLog[]
+}
+
+model WorkoutLog {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime // date-only, midnight UTC representing the user's local calendar day
+  scheduleDayId String?
+  completed     Boolean  @default(true)
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleDay ScheduleDay? @relation(fields: [scheduleDayId], references: [id])
+  setLogs     SetLog[]
+
+  @@unique([userId, date])
+}
+
+model SetLog {
+  id           String   @id @default(cuid())
+  workoutLogId String
+  exerciseId   String
+  setNumber    Int
+  weight       Float
+  reps         Int
+  createdAt    DateTime @default(now())
+
+  workoutLog WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  exercise   Exercise   @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+}
+
+model ScoreEvent {
+  id        String         @id @default(cuid())
+  userId    String
+  date      DateTime
+  type      ScoreEventType
+  points    Int
+  reason    String
+  createdAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
