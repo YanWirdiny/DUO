@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { forwardRef, type InputHTMLAttributes, type LabelHTMLAttributes } from "react";
 
+/** Styled text input; forwards its ref so it works with form libraries and focus management. */
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...props }, ref) {
     return (
@@ -16,6 +17,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   }
 );
 
+/** Small muted label rendered above a form field. */
 export function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label

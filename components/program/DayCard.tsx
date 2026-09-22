@@ -18,6 +18,7 @@ export type DayData = {
   exercises: ExerciseData[];
 };
 
+/** Collapsible schedule-day editor: toggle rest/gym day, edit its label, and manage exercises. */
 export function DayCard({ weekdayLabel, day, defaultOpen }: { weekdayLabel: string; day: DayData; defaultOpen?: boolean }) {
   const [isGymDay, setIsGymDay] = useState(day.isGymDay);
   const [label, setLabel] = useState(day.label ?? "");
@@ -26,6 +27,7 @@ export function DayCard({ weekdayLabel, day, defaultOpen }: { weekdayLabel: stri
   const [savingLabel, setSavingLabel] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** Sends a partial schedule update; returns false (and surfaces an error) on failure. */
   async function patchSchedule(patch: { isGymDay?: boolean; label?: string }) {
     const res = await fetch("/api/schedule", {
       method: "PATCH",
@@ -41,12 +43,14 @@ export function DayCard({ weekdayLabel, day, defaultOpen }: { weekdayLabel: stri
     return true;
   }
 
+  /** Optimistically flips the gym/rest toggle, rolling back if the save fails. */
   async function toggleGymDay(value: boolean) {
     setIsGymDay(value);
     const ok = await patchSchedule({ isGymDay: value });
     if (!ok) setIsGymDay(!value);
   }
 
+  /** Persists the day label on blur. */
   async function saveLabel() {
     setSavingLabel(true);
     await patchSchedule({ label });

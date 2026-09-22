@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import type { ExerciseData } from "./ExerciseRow";
 
+/** Inline form for adding a new exercise to a schedule day; posts to `/api/exercises`. */
 export function AddExerciseForm({
   scheduleDayId,
   onAdd,
@@ -18,6 +19,7 @@ export function AddExerciseForm({
   const [reps, setReps] = useState(10);
   const [busy, setBusy] = useState(false);
 
+  /** Creates the exercise via the API, then hands it back to the parent and resets the form. */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;

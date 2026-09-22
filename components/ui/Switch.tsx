@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
+/** Accessible on/off toggle rendered as a sliding pill. */
 export function Switch({
   checked,
   onChange,

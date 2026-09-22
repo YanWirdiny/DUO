@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 
 const DEFAULT_GYM_DAYS: Weekday[] = ["MON", "WED", "FRI"] as Weekday[];
 
+/** Creates or updates a demo user and gives them a default MON/WED/FRI gym schedule. */
 async function seedUser(opts: {
   username: string;
   password: string;
@@ -42,6 +43,7 @@ async function seedUser(opts: {
   return user;
 }
 
+/** Seeds two demo users (from env vars) and pairs them as gym buddies if not already linked. */
 async function main() {
   const u1 = {
     username: requireEnv("SEED_USER1_USERNAME"),
@@ -68,6 +70,7 @@ async function main() {
   console.log(`Seeded users: ${userA.username}, ${userB.username}`);
 }
 
+/** Reads a required env var, throwing with a clear message if it's unset. */
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required env var: ${name}`);

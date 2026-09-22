@@ -11,6 +11,7 @@ const schema = z.object({
   label: z.string().max(60).optional().nullable(),
 });
 
+/** Creates or updates the gym/rest flag and label for one weekday of the user's schedule. */
 export async function PATCH(req: Request) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

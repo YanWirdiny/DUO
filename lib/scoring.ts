@@ -20,10 +20,12 @@ export const SCORING = {
   MILESTONES: [3, 7, 14, 21, 30, 60, 100, 180, 365] as number[],
 };
 
+/** Extra points for hitting a milestone streak length, or 0 if not a milestone day. */
 function milestoneBonusFor(streak: number): number {
   return SCORING.MILESTONES.includes(streak) ? SCORING.MILESTONE_BONUS : 0;
 }
 
+/** Base completion points plus any milestone bonus for the streak reached today. */
 function pointsForCompletion(newStreak: number): { points: number; milestone: boolean } {
   const bonus = milestoneBonusFor(newStreak);
   return { points: SCORING.BASE_COMPLETION_POINTS + bonus, milestone: bonus > 0 };

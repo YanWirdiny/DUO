@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 
+/** Flame icon used to represent an active streak; dims to a faint outline when inactive. */
 export function StreakFlame({ active = true, className }: { active?: boolean; className?: string }) {
   return (
     <svg

@@ -11,6 +11,7 @@ const schema = z.object({
   order: z.number().int().min(0).optional(),
 });
 
+/** Loads the exercise only if it belongs to a schedule day owned by `userId`. */
 async function ownedExercise(id: string, userId: string) {
   const exercise = await prisma.exercise.findUnique({
     where: { id },
@@ -20,6 +21,7 @@ async function ownedExercise(id: string, userId: string) {
   return exercise;
 }
 
+/** Updates fields on an exercise the user owns. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -35,6 +37,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return NextResponse.json({ exercise });
 }
 
+/** Deletes an exercise the user owns. */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

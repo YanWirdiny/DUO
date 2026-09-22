@@ -3,6 +3,7 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { StreakFlame } from "@/components/ui/StreakFlame";
 import { Trophy } from "lucide-react";
 
+/** Two-up summary card row showing total gym score and current/longest streak. */
 export function StatsRow({
   gymScore,
   currentStreak,

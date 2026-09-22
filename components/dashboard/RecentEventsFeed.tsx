@@ -12,6 +12,7 @@ const ICONS: Record<EventType, typeof Flame> = {
   BUDDY_PENALTY: Users,
 };
 
+/** Chronological list of score events (streak bonuses, penalties, milestones). */
 export function RecentEventsFeed({
   events,
 }: {

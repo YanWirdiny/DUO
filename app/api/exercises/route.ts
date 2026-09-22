@@ -11,6 +11,7 @@ const schema = z.object({
   notes: z.string().max(300).optional().nullable(),
 });
 
+/** Creates an exercise under a schedule day the user owns, appended to the end of the list. */
 export async function POST(req: Request) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

@@ -19,6 +19,11 @@ const schema = z.object({
   sets: z.array(setSchema).max(100),
 });
 
+/**
+ * Upserts a completed workout log for a date and replaces its set logs.
+ * Catches up lazy score evaluation first, then applies today's completion
+ * immediately so streak/score reflect the log without waiting on the next pass.
+ */
 export async function POST(req: Request) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

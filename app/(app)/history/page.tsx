@@ -10,6 +10,7 @@ import { ChevronRight } from "lucide-react";
 
 const HEATMAP_DAYS = 56;
 
+/** Attendance heatmaps (self + buddy) and a list of recently logged sessions. */
 export default async function HistoryPage() {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -81,6 +82,7 @@ export default async function HistoryPage() {
   );
 }
 
+/** Small colored dot + label used in the heatmap legend. */
 function LegendDot({ className, label }: { className: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">

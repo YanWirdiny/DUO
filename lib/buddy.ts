@@ -6,6 +6,7 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars
 const generateCode = customAlphabet(CODE_ALPHABET, 6);
 const CODE_TTL_MINUTES = 15;
 
+/** Returns the paired buddy's user id, or null if the user has no buddy. */
 export async function getBuddyId(userId: string): Promise<string | null> {
   const pair = await prisma.buddyPair.findFirst({
     where: { OR: [{ userAId: userId }, { userBId: userId }] },
@@ -14,6 +15,7 @@ export async function getBuddyId(userId: string): Promise<string | null> {
   return pair.userAId === userId ? pair.userBId : pair.userAId;
 }
 
+/** Generates a fresh 6-char pairing code for the user, replacing any existing one. */
 export async function createPairingCode(userId: string) {
   const code = generateCode();
   const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
@@ -24,6 +26,7 @@ export async function createPairingCode(userId: string) {
   });
 }
 
+/** Redeems a pairing code, creating a buddy pair between the code owner and `userId`. */
 export async function connectWithCode(userId: string, code: string) {
   const normalized = code.trim().toUpperCase();
   const pairingCode = await prisma.pairingCode.findUnique({
@@ -64,6 +67,7 @@ export async function connectWithCode(userId: string, code: string) {
   return { ok: true as const };
 }
 
+/** Removes the buddy pair involving the given user, if one exists. */
 export async function disconnectBuddy(userId: string) {
   await prisma.buddyPair.deleteMany({
     where: { OR: [{ userAId: userId }, { userBId: userId }] },

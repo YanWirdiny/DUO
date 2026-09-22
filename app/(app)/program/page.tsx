@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { WEEKDAY_LABELS, WEEKDAY_ORDER, todayInTz, weekdayOf } from "@/lib/dates";
 import { DayCard } from "@/components/program/DayCard";
 
+/** Weekly schedule editor: toggle gym/rest days and manage exercises for each. */
 export default async function ProgramPage() {
   const user = await getCurrentUser();
   if (!user) return null;

@@ -3,6 +3,11 @@ import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 const PUBLIC_PATHS = ["/login", "/manifest.json", "/sw.js", "/offline.html"];
 
+/**
+ * Edge-runtime request gate: allows public paths through, redirects an already
+ * signed-in user away from /login, and otherwise requires a valid session —
+ * returning 401 JSON for API routes or redirecting page routes to /login.
+ */
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 

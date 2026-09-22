@@ -30,6 +30,7 @@ const COMMON_TIMEZONES = [
 
 const AVATAR_COLORS = ["#6D4DFC", "#FF7A45", "#1FB27A", "#EF4D6B", "#3B82F6", "#F59E0B", "#EC4899", "#14B8A6"];
 
+/** Profile editor: display name, timezone, and avatar color, each autosaving on change. */
 export function ProfileForm({
   displayName: initialName,
   timezone: initialTimezone,
@@ -47,6 +48,7 @@ export function ProfileForm({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** PATCHes the given profile fields and refreshes server data on success. */
   async function save(patch: Partial<{ displayName: string; timezone: string; avatarColor: string }>) {
     setBusy(true);
     setSaved(false);

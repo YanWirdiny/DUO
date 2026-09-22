@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, CalendarOff } from "lucide-react";
 
 type Exercise = { id: string; name: string; targetSets: number; targetReps: number };
 
+/** Today's workout summary: rest-day state, exercise list, or a link to log the workout. */
 export function TodayCard({
   dateLabel,
   dateStr,

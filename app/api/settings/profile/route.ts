@@ -24,6 +24,7 @@ const schema = z.object({
     .optional(),
 });
 
+/** Updates the user's display name, timezone, and/or avatar color (any subset). */
 export async function PATCH(req: Request) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

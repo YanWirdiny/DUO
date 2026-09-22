@@ -7,6 +7,7 @@ import { formatFriendly } from "@/lib/dates";
 
 export type ProgressPoint = { date: string; weight: number };
 
+/** Line chart of an exercise's logged weight over time, with its all-time PR badge. */
 export function ExerciseProgressCard({
   name,
   points,

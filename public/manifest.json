@@ -1,7 +1,7 @@
 {
-  "name": "Duo — Gym Buddy Tracker",
+  "name": "Duo",
   "short_name": "Duo",
-  "description": "Track your workouts and stay accountable with your gym buddy.",
+  "description": " From Buddha to Apollo.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

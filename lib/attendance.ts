@@ -12,6 +12,11 @@ import {
 export type DayStatus = "completed" | "missed" | "rest" | "future";
 export type AttendanceDay = { date: DateStr; status: DayStatus };
 
+/**
+ * Builds a day-by-day attendance history for the trailing `days` window ending today.
+ * Each day is classified as "rest" (not a scheduled gym day), "completed" (logged
+ * workout found), or "missed" (scheduled but no completed log).
+ */
 export async function buildAttendance(userId: string, timezone: string, days: number): Promise<AttendanceDay[]> {
   const today = todayInTz(timezone);
   const start = addDays(today, -(days - 1));

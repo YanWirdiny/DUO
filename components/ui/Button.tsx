@@ -26,6 +26,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: Size;
 }
 
+/** Base button; combine `variant` (color/emphasis) and `size` for the desired style. */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { className, variant = "primary", size = "md", ...props },
   ref

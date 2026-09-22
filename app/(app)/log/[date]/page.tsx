@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { dateStrToUtcMidnight, formatFriendly, weekdayOf } from "@/lib/dates";
 import { SetLogger } from "@/components/log/SetLogger";
 
+/** Log-a-workout page for a specific date, prefilled with the day's exercises and last-session weights. */
 export default async function LogDatePage({ params }: { params: Promise<{ date: string }> }) {
   const { date } = await params;
   const user = await getCurrentUser();
@@ -31,6 +32,7 @@ export default async function LogDatePage({ params }: { params: Promise<{ date: 
   const exercises = scheduleDay?.exercises ?? [];
   const exerciseIds = exercises.map((e) => e.id);
 
+  // Most recent prior set per exercise, used to prefill placeholders (e.g. "last time: 135 lb").
   const lastSets = exerciseIds.length
     ? await prisma.setLog.findMany({
         where: { exerciseId: { in: exerciseIds }, workoutLog: { userId: user.id, date: { lt: dateValue } } },

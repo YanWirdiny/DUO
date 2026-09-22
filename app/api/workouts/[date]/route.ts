@@ -4,6 +4,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { dateStrToUtcMidnight } from "@/lib/dates";
 import { recomputeAfterLogChange } from "@/lib/scoring";
 
+/** Deletes a day's workout log and reverses/re-derives any score, streak, and buddy-penalty effects it caused. */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ date: string }> }) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

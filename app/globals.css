@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Light theme (default). Mirrored below for system dark mode and manual --theme=dark override. */
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
@@ -25,6 +26,7 @@
   --shadow-raised: 0 2px 8px rgba(2, 1, 10, 0.06), 0 16px 40px -16px rgba(2, 1, 10, 0.18);
 }
 
+/* Dark theme via OS preference, unless the user explicitly picked light. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #02010a;
@@ -52,6 +54,7 @@
   }
 }
 
+/* Dark theme via explicit user choice, regardless of OS preference. */
 :root[data-theme="dark"] {
   --bg: #02010a;
   --surface: #0f0e13;
@@ -77,6 +80,7 @@
   --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.25), 0 16px 40px -16px rgba(0, 0, 0, 0.55);
 }
 
+/* Maps the theme variables above to Tailwind's `--color-*`/`--font-*` tokens for use in classes. */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);

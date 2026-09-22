@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/info", label: "Info", icon: InfoIcon },
 ];
 
+/** App layout chrome: desktop sidebar nav + mobile top bar/bottom nav, wrapping page content. */
 export function AppShell({
   children,
   user,
@@ -23,6 +24,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
 
+  /** Clears the session cookie, then hard-redirects to /login and refreshes server state. */
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");

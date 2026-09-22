@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { StreakFlame } from "@/components/ui/StreakFlame";
 import { Trophy, UserPlus } from "lucide-react";
 
+/** Shows the connected buddy's status today, or a prompt to connect if `buddy` is null. */
 export function BuddyStatusCard({
   buddy,
 }: {

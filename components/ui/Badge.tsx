@@ -11,6 +11,7 @@ const toneClasses: Record<Tone, string> = {
   ember: "bg-ember-soft text-ember",
 };
 
+/** Small pill label; `tone` picks the color pairing (accent, success, danger, neutral, ember). */
 export function Badge({
   tone = "neutral",
   className,

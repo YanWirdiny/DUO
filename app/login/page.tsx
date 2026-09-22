@@ -1,6 +1,7 @@
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Card } from "@/components/ui/Card";
 
+/** Public sign-in screen with a desktop hero image and the login form. */
 export default function LoginPage() {
   return (
     <div className="flex min-h-dvh">

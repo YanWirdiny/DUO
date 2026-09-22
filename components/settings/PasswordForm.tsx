@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
+/** Change-password form; requires the current password and submits to `/api/settings/password`. */
 export function PasswordForm() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");

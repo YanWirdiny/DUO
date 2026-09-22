@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Duo — Gym Buddy Tracker",
+  title: "Duo",
   description: "Track your workouts, stay accountable with your gym buddy.",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -40,6 +40,7 @@ export const viewport: Viewport = {
   ],
 };
 
+/** Root HTML shell shared by every route: fonts, metadata, and viewport/theme config. */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html

@@ -27,6 +27,7 @@ enum ScoreEventType {
   BUDDY_PENALTY
 }
 
+/// An account: credentials, profile, and the running score/streak totals.
 model User {
   id           String  @id @default(cuid())
   username     String  @unique
@@ -55,6 +56,7 @@ model User {
   pairAsUserB BuddyPair? @relation("PairB")
 }
 
+/// A confirmed 1:1 accountability pairing between two users.
 model BuddyPair {
   id        String   @id @default(cuid())
   userAId   String   @unique
@@ -65,6 +67,7 @@ model BuddyPair {
   userB User @relation("PairB", fields: [userBId], references: [id], onDelete: Cascade)
 }
 
+/// A short-lived, one-time code a user shares to let someone else pair with them.
 model PairingCode {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -75,6 +78,7 @@ model PairingCode {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+/// A user's recurring plan for one weekday: whether it's a gym day and its exercises.
 model ScheduleDay {
   id       String  @id @default(cuid())
   userId   String
@@ -89,6 +93,7 @@ model ScheduleDay {
   @@unique([userId, weekday])
 }
 
+/// A single exercise within a schedule day, with its target sets/reps.
 model Exercise {
   id            String  @id @default(cuid())
   scheduleDayId String
@@ -102,6 +107,7 @@ model Exercise {
   setLogs     SetLog[]
 }
 
+/// One user's completed (or in-progress) workout for a single calendar day.
 model WorkoutLog {
   id            String   @id @default(cuid())
   userId        String
@@ -118,6 +124,7 @@ model WorkoutLog {
   @@unique([userId, date])
 }
 
+/// A single logged set (weight × reps) for one exercise within a workout log.
 model SetLog {
   id           String   @id @default(cuid())
   workoutLogId String
@@ -131,6 +138,7 @@ model SetLog {
   exercise   Exercise   @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 }
 
+/// An audit-log entry for a single point change (bonus or penalty) applied to a user.
 model ScoreEvent {
   id        String         @id @default(cuid())
   userId    String

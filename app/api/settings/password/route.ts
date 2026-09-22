@@ -8,6 +8,7 @@ const schema = z.object({
   newPassword: z.string().min(8).max(200),
 });
 
+/** Changes the user's password after verifying their current one. */
 export async function PATCH(req: Request) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

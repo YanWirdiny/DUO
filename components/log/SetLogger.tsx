@@ -18,6 +18,7 @@ export type LogExercise = {
 
 type SetInput = { weight: string; reps: string };
 
+/** Per-exercise set/rep/weight editor for a single day's workout log; saves or deletes via the API. */
 export function SetLogger({
   date,
   scheduleDayId,
@@ -32,6 +33,7 @@ export function SetLogger({
   hasExistingLog: boolean;
 }) {
   const router = useRouter();
+  // Seeds each exercise with a row per target set, or per existing logged set if more.
   const [rows, setRows] = useState<Record<string, SetInput[]>>(() => {
     const map: Record<string, SetInput[]> = {};
     for (const ex of exercises) {
@@ -49,6 +51,7 @@ export function SetLogger({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** Updates one set row's weight/reps for an exercise. */
   function updateRow(exerciseId: string, index: number, patch: Partial<SetInput>) {
     setRows((prev) => ({
       ...prev,
@@ -56,14 +59,17 @@ export function SetLogger({
     }));
   }
 
+  /** Appends a blank set row for an exercise. */
   function addRow(exerciseId: string) {
     setRows((prev) => ({ ...prev, [exerciseId]: [...prev[exerciseId], { weight: "", reps: "" }] }));
   }
 
+  /** Removes a set row for an exercise. */
   function removeRow(exerciseId: string, index: number) {
     setRows((prev) => ({ ...prev, [exerciseId]: prev[exerciseId].filter((_, i) => i !== index) }));
   }
 
+  /** Flattens all rows into set records (dropping empty ones) and POSTs the workout log. */
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -91,6 +97,7 @@ export function SetLogger({
     router.refresh();
   }
 
+  /** Deletes the day's workout log entirely and returns to the dashboard. */
   async function handleDelete() {
     setSaving(true);
     await fetch(`/api/workouts/${date}`, { method: "DELETE" });

@@ -8,6 +8,7 @@ import { TodayCard } from "@/components/dashboard/TodayCard";
 import { BuddyStatusCard } from "@/components/dashboard/BuddyStatusCard";
 import { RecentEventsFeed } from "@/components/dashboard/RecentEventsFeed";
 
+/** Home dashboard: today's workout, stats, buddy status, and recent score events. */
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) return null; // layout already guards this
@@ -32,6 +33,7 @@ export default async function DashboardPage() {
 
   let buddyData = null;
   if (buddyId) {
+    // Catch up the buddy's score too, so their status shown here is current.
     await ensureScoresUpToDate(buddyId);
     const buddy = await prisma.user.findUnique({ where: { id: buddyId } });
     if (buddy) {

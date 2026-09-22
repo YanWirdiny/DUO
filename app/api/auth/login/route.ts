@@ -20,6 +20,7 @@ const schema = z.object({
 // otherwise the early-return would let timing distinguish valid usernames.
 const DUMMY_HASH = "$2b$12$49LxcAktfLi6lwwFmX8tZewRGtVqqPXJT9YHhVqMY3dcWZU9aSUy.";
 
+/** Verifies credentials, applies lockout/timing-safety checks, and issues a session cookie. */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);

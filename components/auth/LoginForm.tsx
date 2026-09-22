@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
+/** Username/password sign-in form; redirects to the dashboard on success. */
 export function LoginForm() {
   const router = useRouter();
   const [username, setUsername] = useState("");

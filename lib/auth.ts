@@ -13,14 +13,17 @@ const LOCKOUT_MINUTES = 5;
 
 export { signSessionToken, verifySessionToken, SESSION_COOKIE_NAME };
 
+/** Hashes a plaintext password with bcrypt (cost factor 12). */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }
 
+/** Checks a plaintext password against a bcrypt hash. */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
+/** Sets the signed session JWT as an httpOnly cookie. */
 export async function setSessionCookie(token: string) {
   const store = await cookies();
   store.set(SESSION_COOKIE_NAME, token, {
@@ -32,11 +35,13 @@ export async function setSessionCookie(token: string) {
   });
 }
 
+/** Removes the session cookie (logout). */
 export async function clearSessionCookie() {
   const store = await cookies();
   store.delete(SESSION_COOKIE_NAME);
 }
 
+/** Reads and verifies the session cookie, returning the user id or null. */
 export async function getSessionUserId(): Promise<string | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE_NAME)?.value;
@@ -44,6 +49,7 @@ export async function getSessionUserId(): Promise<string | null> {
   return verifySessionToken(token);
 }
 
+/** Loads the full user record for the current session, or null if unauthenticated. */
 export async function getCurrentUser() {
   const userId = await getSessionUserId();
   if (!userId) return null;
@@ -59,6 +65,7 @@ export function lockoutMessage(user: { lockedUntil: Date | null }): string | nul
   return null;
 }
 
+/** Increments the failed-login counter and locks the account once `MAX_FAILED_ATTEMPTS` is hit. */
 export async function recordFailedLogin(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
@@ -73,6 +80,7 @@ export async function recordFailedLogin(userId: string) {
   });
 }
 
+/** Clears the failed-login counter and any active lockout after a successful login. */
 export async function resetFailedLogins(userId: string) {
   await prisma.user.update({
     where: { id: userId },

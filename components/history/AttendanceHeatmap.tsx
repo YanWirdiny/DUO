@@ -27,6 +27,7 @@ function toWeekRows(days: AttendanceDay[]): (AttendanceDay | null)[][] {
   return rows;
 }
 
+/** GitHub-style weekly grid of attendance status (completed/missed/rest/future) for one user. */
 export function AttendanceHeatmap({ days, label, accentColor }: { days: AttendanceDay[]; label: string; accentColor: string }) {
   const rows = toWeekRows(days);
 

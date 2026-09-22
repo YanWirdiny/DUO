@@ -6,6 +6,7 @@ import { Trophy, Flame as FlameIcon } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
+/** Buddy summary card with a confirm-before-disconnect action. */
 export function BuddyProfileCard({
   buddy,
 }: {
@@ -15,6 +16,7 @@ export function BuddyProfileCard({
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  /** Unpairs from the current buddy and refreshes server data. */
   async function disconnect() {
     setBusy(true);
     await fetch("/api/buddy/disconnect", { method: "POST" });

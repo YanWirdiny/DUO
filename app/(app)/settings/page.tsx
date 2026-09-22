@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { PasswordForm } from "@/components/settings/PasswordForm";
 
+/** Account settings: profile fields and password change. */
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) return null;

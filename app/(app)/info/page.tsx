@@ -7,6 +7,7 @@ import { BuddyProfileCard } from "@/components/buddy/BuddyProfileCard";
 import { PairingPanel } from "@/components/buddy/PairingPanel";
 import { Card } from "@/components/ui/Card";
 
+/** Per-exercise load progression charts, plus the buddy connection panel/status. */
 export default async function InfoPage() {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -24,6 +25,7 @@ export default async function InfoPage() {
   ]);
   const buddy = buddyId ? await prisma.user.findUnique({ where: { id: buddyId } }) : null;
 
+  // Daily max weight per exercise (for the progress chart) plus each exercise's all-time PR.
   const withData = exercises
     .map((ex) => {
       const byDate = new Map<string, number>();

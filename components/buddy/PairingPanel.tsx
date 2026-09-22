@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 
+/** Two-way buddy pairing UI: generate a shareable code, or redeem one from a buddy. */
 export function PairingPanel() {
   const router = useRouter();
   const [code, setCode] = useState<string | null>(null);
@@ -15,6 +16,7 @@ export function PairingPanel() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /** Requests a new pairing code (15-minute TTL) for this user. */
   async function generateCode() {
     setBusy(true);
     setError(null);
@@ -25,6 +27,7 @@ export function PairingPanel() {
     setBusy(false);
   }
 
+  /** Copies the generated code to the clipboard, briefly showing a "copied" state. */
   async function copyCode() {
     if (!code) return;
     await navigator.clipboard.writeText(code);
@@ -32,6 +35,7 @@ export function PairingPanel() {
     setTimeout(() => setCopied(false), 1500);
   }
 
+  /** Redeems the entered code, pairing with its owner on success. */
   async function handleConnect(e: FormEvent) {
     e.preventDefault();
     setBusy(true);

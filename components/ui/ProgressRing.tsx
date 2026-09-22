@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 
+/** Circular SVG progress indicator; pass `progress` in the 0..1 range. Children render centered. */
 export function ProgressRing({
   progress,
   size = 64,
@@ -23,9 +24,14 @@ export function ProgressRing({
   const offset = circumference * (1 - clamped);
 
   return (
-    <div className={cn("relative inline-flex items-center justify-center", className)} style={{ width: size, height: size }}>
+    <div
+      className={cn("relative inline-flex items-center justify-center", className)}
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} className="-rotate-90">
+        {/* Full track circle, drawn under the animated progress arc. */}
         <circle cx={size / 2} cy={size / 2} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
+        {/* Progress arc: dasharray = full circumference, dashoffset shrinks as progress grows. */}
         <circle
           cx={size / 2}
           cy={size / 2}

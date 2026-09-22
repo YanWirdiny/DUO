@@ -5,6 +5,7 @@ import { connectWithCode } from "@/lib/buddy";
 
 const schema = z.object({ code: z.string().min(4).max(12) });
 
+/** Redeems a buddy's pairing code and creates a buddy pair for the current user. */
 export async function POST(req: Request) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

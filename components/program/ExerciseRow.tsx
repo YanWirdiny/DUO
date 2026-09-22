@@ -11,6 +11,7 @@ export type ExerciseData = {
   targetReps: number;
 };
 
+/** Single exercise line with inline edit (name/sets/reps) and delete, both backed by the API. */
 export function ExerciseRow({
   exercise,
   onUpdate,
@@ -27,6 +28,7 @@ export function ExerciseRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** PATCHes the edited fields, then exits edit mode on success. */
   async function save() {
     setBusy(true);
     setError(null);
@@ -45,6 +47,7 @@ export function ExerciseRow({
     setEditing(false);
   }
 
+  /** DELETEs the exercise, then removes it from the parent's list on success. */
   async function remove() {
     setBusy(true);
     setError(null);
