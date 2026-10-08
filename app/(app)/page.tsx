@@ -2,11 +2,13 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getBuddyId } from "@/lib/buddy";
 import { ensureScoresUpToDate } from "@/lib/scoring";
-import { todayInTz, weekdayOf, dateStrToUtcMidnight, formatFriendly } from "@/lib/dates";
+import { todayInTz, weekdayOf, dateStrToUtcMidnight, formatFriendly, addDays } from "@/lib/dates";
+import { getLateLogEligibility } from "@/lib/late-log";
 import { StatsRow } from "@/components/dashboard/StatsRow";
 import { TodayCard } from "@/components/dashboard/TodayCard";
 import { BuddyStatusCard } from "@/components/dashboard/BuddyStatusCard";
 import { RecentEventsFeed } from "@/components/dashboard/RecentEventsFeed";
+import { LateLogBanner } from "@/components/dashboard/LateLogBanner";
 
 /** Home dashboard: today's workout, stats, buddy status, and recent score events. */
 export default async function DashboardPage() {
@@ -17,7 +19,9 @@ export default async function DashboardPage() {
   const weekday = weekdayOf(today);
   const todayDate = dateStrToUtcMidnight(today);
 
-  const [scheduleDay, workoutLog, buddyId, recentEvents] = await Promise.all([
+  const yesterday = addDays(today, -1);
+
+  const [scheduleDay, workoutLog, buddyId, recentEvents, yesterdayEligibility] = await Promise.all([
     prisma.scheduleDay.findUnique({
       where: { userId_weekday: { userId: user.id, weekday } },
       include: { exercises: { orderBy: { order: "asc" } } },
@@ -29,6 +33,7 @@ export default async function DashboardPage() {
       orderBy: { date: "desc" },
       take: 6,
     }),
+    getLateLogEligibility(user.id, user.timezone, yesterday),
   ]);
 
   let buddyData = null;
@@ -75,6 +80,15 @@ export default async function DashboardPage() {
         exercises={scheduleDay?.exercises ?? []}
         completed={!!workoutLog?.completed}
       />
+
+      {/* Only surface it for a missed gym day; a rest day has no penalty to recover. */}
+      {yesterdayEligibility.allowed && yesterdayEligibility.usesAllowance && (
+        <LateLogBanner
+          dateStr={yesterday}
+          dateLabel={formatFriendly(yesterday)}
+          remaining={yesterdayEligibility.remaining}
+        />
+      )}
 
       <BuddyStatusCard buddy={buddyData} />
 

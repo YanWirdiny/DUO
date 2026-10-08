@@ -62,10 +62,14 @@ export async function ensureScoresUpToDate(userId: string): Promise<void> {
   const datesToCheck = enumerateRange(start, yesterday).filter((d) => gymWeekdays.has(weekdayOf(d)));
 
   if (datesToCheck.length > 0) {
-    const logs = await prisma.workoutLog.findMany({
-      where: { userId, date: { in: datesToCheck.map(dateStrToUtcMidnight) }, completed: true },
-    });
+    const [logs, lateLogs] = await Promise.all([
+      prisma.workoutLog.findMany({
+        where: { userId, date: { in: datesToCheck.map(dateStrToUtcMidnight) }, completed: true },
+      }),
+      prisma.lateLog.findMany({ where: { userId, targetDate: { in: datesToCheck.map(dateStrToUtcMidnight) } } }),
+    ]);
     const loggedDates = new Set(logs.map((l) => utcMidnightToDateStr(l.date)));
+    const lateDates = new Set(lateLogs.map((l) => utcMidnightToDateStr(l.targetDate)));
 
     let streak = user.currentStreak;
     let longest = user.longestStreak;
@@ -84,9 +88,9 @@ export async function ensureScoresUpToDate(userId: string): Promise<void> {
           date: dateStrToUtcMidnight(date),
           type: milestone ? "MILESTONE_BONUS" : "STREAK_BONUS",
           points,
-          reason: milestone
-            ? `${streak}-day streak milestone`
-            : `Logged scheduled workout (streak: ${streak})`,
+          reason:
+            (milestone ? `${streak}-day streak milestone` : `Logged scheduled workout (streak: ${streak})`) +
+            (lateDates.has(date) ? ", logged late" : ""),
         });
       } else {
         streak = 0;

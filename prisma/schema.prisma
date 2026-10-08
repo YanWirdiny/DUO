@@ -50,6 +50,7 @@ model User {
   scheduleDays ScheduleDay[]
   workoutLogs  WorkoutLog[]
   scoreEvents  ScoreEvent[]
+  lateLogs     LateLog[]
   pairingCode  PairingCode?
 
   pairAsUserA BuddyPair? @relation("PairA")
@@ -151,4 +152,20 @@ model ScoreEvent {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+}
+
+/// One use of the weekly "forgot to log" allowance: a workout logged for yesterday
+/// after the day ended. Kept separate from WorkoutLog so deleting the log doesn't
+/// refund the use, and re-saving the same day never charges twice.
+model LateLog {
+  id         String   @id @default(cuid())
+  userId     String
+  targetDate DateTime // the forgotten day, date-only midnight UTC
+  weekStart  DateTime // Monday of the week the allowance was used in, date-only midnight UTC
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetDate])
+  @@index([userId, weekStart])
 }

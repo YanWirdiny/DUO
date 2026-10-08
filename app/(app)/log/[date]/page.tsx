@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, History } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { dateStrToUtcMidnight, formatFriendly, weekdayOf } from "@/lib/dates";
+import { dateStrToUtcMidnight, formatFriendly, todayInTz, weekdayOf } from "@/lib/dates";
+import { getLateLogEligibility, LATE_LOG, LATE_LOG_MESSAGES } from "@/lib/late-log";
 import { SetLogger } from "@/components/log/SetLogger";
 
 /** Log-a-workout page for a specific date, prefilled with the day's exercises and last-session weights. */
@@ -28,6 +29,12 @@ export default async function LogDatePage({ params }: { params: Promise<{ date: 
       include: { setLogs: true },
     }),
   ]);
+
+  // A new log for any day but today goes through the late-log rules (same check the API enforces).
+  const lateEligibility =
+    !workoutLog && date !== todayInTz(user.timezone)
+      ? await getLateLogEligibility(user.id, user.timezone, date)
+      : null;
 
   const exercises = scheduleDay?.exercises ?? [];
   const exerciseIds = exercises.map((e) => e.id);
@@ -61,7 +68,20 @@ export default async function LogDatePage({ params }: { params: Promise<{ date: 
         <p className="text-sm text-text-muted">{formatFriendly(date)}</p>
       </div>
 
-      {exercises.length === 0 ? (
+      {lateEligibility?.allowed && (
+        <p className="flex items-start gap-2 rounded-2xl bg-ember-soft px-4 py-3 text-sm text-ember">
+          <History size={16} className="mt-0.5 shrink-0" />
+          {lateEligibility.usesAllowance
+            ? `Late log: saving uses 1 of your ${lateEligibility.remaining} remaining this week (max ${LATE_LOG.MAX_PER_WEEK}). Full points, and your buddy gets their penalty back.`
+            : "Late log: this won't use any of your weekly late logs."}
+        </p>
+      )}
+
+      {lateEligibility && !lateEligibility.allowed ? (
+        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-text-muted">
+          {LATE_LOG_MESSAGES[lateEligibility.reason]}
+        </p>
+      ) : exercises.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-text-muted">
           No exercises are set for this day yet.{" "}
           <Link href="/program" className="font-medium text-accent hover:underline">
