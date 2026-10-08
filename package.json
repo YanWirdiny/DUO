@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "prisma migrate deploy && next start",
     "lint": "eslint",
+    "test": "node --import tsx --test \"tests/**/*.test.mts\"",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev"

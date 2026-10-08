@@ -36,6 +36,12 @@ export function addDays(dateStr: DateStr, amount: number): DateStr {
   return utcMidnightToDateStr(d);
 }
 
+/** Monday of the Mon–Sun week containing the date. */
+export function startOfWeek(dateStr: DateStr): DateStr {
+  const daysSinceMonday = (dateStrToUtcMidnight(dateStr).getUTCDay() + 6) % 7;
+  return addDays(dateStr, -daysSinceMonday);
+}
+
 /** String comparison works because dates are in "YYYY-MM-DD" order. */
 export function isBefore(a: DateStr, b: DateStr): boolean {
   return a < b;
