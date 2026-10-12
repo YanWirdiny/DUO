@@ -1,32 +1,40 @@
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getBuddyId } from "@/lib/buddy";
 import { ensureScoresUpToDate } from "@/lib/scoring";
-import { todayInTz, weekdayOf, dateStrToUtcMidnight, formatFriendly, addDays } from "@/lib/dates";
+import {
+  todayInTz,
+  dateStrToUtcMidnight,
+  utcMidnightToDateStr,
+  formatFriendly,
+  addDays,
+  startOfWeek,
+} from "@/lib/dates";
 import { getLateLogEligibility } from "@/lib/late-log";
-import { StatsRow } from "@/components/dashboard/StatsRow";
-import { TodayCard } from "@/components/dashboard/TodayCard";
-import { BuddyStatusCard } from "@/components/dashboard/BuddyStatusCard";
-import { RecentEventsFeed } from "@/components/dashboard/RecentEventsFeed";
-import { LateLogBanner } from "@/components/dashboard/LateLogBanner";
+import { buildWeekStrip, loadSessionVolumes, summarizeEffort, weeklyScoreChange } from "@/lib/home";
+import { WeekStrip } from "@/components/home/WeekStrip";
+import { GymScoreCard } from "@/components/home/GymScoreCard";
+import { BuddyScoreCard } from "@/components/home/BuddyScoreCard";
+import { EffortCard } from "@/components/home/EffortCard";
+import { ActivityTimeline } from "@/components/home/ActivityTimeline";
+import { LateLogBanner } from "@/components/home/LateLogBanner";
 
-/** Home dashboard: today's workout, stats, buddy status, and recent score events. */
-export default async function DashboardPage() {
+/** Home: this week at a glance, gym and buddy scores, lifetime effort, and recent score events. */
+export default async function HomePage() {
   const user = await getCurrentUser();
   if (!user) return null; // layout already guards this
 
   const today = todayInTz(user.timezone);
-  const weekday = weekdayOf(today);
-  const todayDate = dateStrToUtcMidnight(today);
-
+  const weekStart = startOfWeek(today);
   const yesterday = addDays(today, -1);
 
-  const [scheduleDay, workoutLog, buddyId, recentEvents, yesterdayEligibility] = await Promise.all([
-    prisma.scheduleDay.findUnique({
-      where: { userId_weekday: { userId: user.id, weekday } },
-      include: { exercises: { orderBy: { order: "asc" } } },
+  const [gymDays, weekLogs, buddyId, recentEvents, yesterdayEligibility, weekChange, sessions] = await Promise.all([
+    prisma.scheduleDay.findMany({ where: { userId: user.id, isGymDay: true }, select: { weekday: true } }),
+    prisma.workoutLog.findMany({
+      where: { userId: user.id, completed: true, date: { gte: dateStrToUtcMidnight(weekStart) } },
+      select: { date: true },
     }),
-    prisma.workoutLog.findUnique({ where: { userId_date: { userId: user.id, date: todayDate } } }),
     getBuddyId(user.id),
     prisma.scoreEvent.findMany({
       where: { userId: user.id },
@@ -34,52 +42,44 @@ export default async function DashboardPage() {
       take: 6,
     }),
     getLateLogEligibility(user.id, user.timezone, yesterday),
+    weeklyScoreChange(user.id, weekStart),
+    loadSessionVolumes(user.id),
   ]);
+
+  const loggedDates = new Set(weekLogs.map((l) => utcMidnightToDateStr(l.date)));
+  const week = buildWeekStrip(today, weekStart, new Set(gymDays.map((d) => d.weekday)), loggedDates);
 
   let buddyData = null;
   if (buddyId) {
-    // Catch up the buddy's score too, so their status shown here is current.
+    // Catch up the buddy's score too, so what's shown here is current.
     await ensureScoresUpToDate(buddyId);
     const buddy = await prisma.user.findUnique({ where: { id: buddyId } });
     if (buddy) {
-      const buddyToday = todayInTz(buddy.timezone);
-      const buddyWeekday = weekdayOf(buddyToday);
-      const [buddySchedule, buddyLog] = await Promise.all([
-        prisma.scheduleDay.findUnique({
-          where: { userId_weekday: { userId: buddy.id, weekday: buddyWeekday } },
-        }),
-        prisma.workoutLog.findUnique({
-          where: { userId_date: { userId: buddy.id, date: dateStrToUtcMidnight(buddyToday) } },
-        }),
-      ]);
       buddyData = {
         displayName: buddy.displayName,
-        avatarColor: buddy.avatarColor,
         gymScore: buddy.gymScore,
-        currentStreak: buddy.currentStreak,
-        isGymDayToday: buddySchedule?.isGymDay ?? false,
-        loggedToday: !!buddyLog?.completed,
+        // The buddy's own week, in their timezone.
+        weekChange: await weeklyScoreChange(buddy.id, startOfWeek(todayInTz(buddy.timezone))),
       };
     }
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <p className="text-sm text-text-muted">Welcome back,</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{user.displayName}</h1>
-      </div>
+    <div className="flex flex-col gap-[18px] font-dm">
+      <header className="flex items-center justify-between">
+        <h1 className="text-[26px] font-bold tracking-[-0.52px] text-ink">Home</h1>
+        <Link
+          href="/settings"
+          aria-label="Settings"
+          className="flex size-8 items-center justify-center rounded-full bg-chip text-[13px] font-bold text-ink"
+        >
+          {user.displayName.slice(0, 1).toUpperCase()}
+        </Link>
+      </header>
 
-      <StatsRow gymScore={user.gymScore} currentStreak={user.currentStreak} longestStreak={user.longestStreak} />
+      <WeekStrip days={week} />
 
-      <TodayCard
-        dateLabel={formatFriendly(today)}
-        dateStr={today}
-        isGymDay={scheduleDay?.isGymDay ?? false}
-        dayLabel={scheduleDay?.label ?? null}
-        exercises={scheduleDay?.exercises ?? []}
-        completed={!!workoutLog?.completed}
-      />
+      <GymScoreCard gymScore={user.gymScore} weekChange={weekChange} todayStr={today} loggedToday={loggedDates.has(today)} />
 
       {/* Only surface it for a missed gym day; a rest day has no penalty to recover. */}
       {yesterdayEligibility.allowed && yesterdayEligibility.usesAllowance && (
@@ -90,9 +90,12 @@ export default async function DashboardPage() {
         />
       )}
 
-      <BuddyStatusCard buddy={buddyData} />
+      <div className="grid grid-cols-2 gap-2.5">
+        <BuddyScoreCard buddy={buddyData} />
+        <EffortCard effort={summarizeEffort(sessions, weekStart)} />
+      </div>
 
-      <RecentEventsFeed events={recentEvents} />
+      <ActivityTimeline events={recentEvents} />
     </div>
   );
 }

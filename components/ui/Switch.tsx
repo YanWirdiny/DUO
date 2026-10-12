@@ -7,16 +7,20 @@ export function Switch({
   checked,
   onChange,
   disabled,
+  label,
 }: {
   checked: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  /** Accessible name, for switches without a visible <label>. */
+  label?: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(

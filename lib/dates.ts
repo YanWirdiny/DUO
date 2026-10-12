@@ -13,6 +13,12 @@ export function todayInTz(timezone: string): DateStr {
   return formatInTimeZone(new Date(), timezone, "yyyy-MM-dd");
 }
 
+/** The user's local calendar day and minute of that day (0–1439) at instant `now`. */
+export function nowInTz(timezone: string, now: Date = new Date()): { date: DateStr; minute: number } {
+  const [date, hours, minutes] = formatInTimeZone(now, timezone, "yyyy-MM-dd HH mm").split(" ");
+  return { date, minute: Number(hours) * 60 + Number(minutes) };
+}
+
 /** Parses a "YYYY-MM-DD" string into a UTC-midnight `Date` for safe arithmetic. */
 export function dateStrToUtcMidnight(dateStr: DateStr): Date {
   return new Date(`${dateStr}T00:00:00.000Z`);

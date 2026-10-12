@@ -7,6 +7,7 @@ Read top to bottom once and you should be able to work on any part of the repo.
 > **Function-level wiring** (who calls what, class/sequence UML per function) lives in [`UML.md`](./UML.md). This file stays at the module/feature level and links there for detail.
 
 **Last full audit:** 2026-10-08 (branch `feature/late-log`) — covers 100% of source files listed in [§2 Repo map](#2-repo-map).
+**Last feature update:** 2026-10-12 (branch `feature/notifications`) — home redesign from Figma, [§9.7](#97-home).
 
 ---
 
@@ -27,11 +28,12 @@ Read top to bottom once and you should be able to work on any part of the repo.
    - [9.4 Scoring & streaks](#94-scoring--streaks)
    - [9.5 Late log ("forgot to log")](#95-late-log-forgot-to-log)
    - [9.6 Buddy pairing](#96-buddy-pairing)
-   - [9.7 Dashboard](#97-dashboard)
+   - [9.7 Home](#97-home)
    - [9.8 History & attendance](#98-history--attendance)
    - [9.9 Progress (Info page)](#99-progress-info-page)
    - [9.10 Settings](#910-settings)
    - [9.11 PWA](#911-pwa)
+   - [9.12 Notifications](#912-notifications)
 10. [API reference](#10-api-reference)
 11. [Frontend](#11-frontend)
 12. [Local development](#12-local-development)
@@ -52,22 +54,25 @@ A private, two-person gym accountability app, installable as a PWA.
 - On a gym day they **log** sets (weight × reps).
 - Logging a scheduled gym day earns points and grows a **streak**. Missing one costs points, resets the streak, **and costs the buddy points too**. That shared penalty is the point of the app.
 - Forgot to log yesterday? A **late log** recovers it, up to twice a week.
+- Opt-in **push notifications** remind each user on gym days: a morning "gym day" nudge and an evening "you haven't logged yet" reminder.
 - There is **no sign-up**. Exactly two accounts are created by the seed script ([§14](#14-deployment)).
 
 ---
 
 ## 2. Repo map
 
-Every source file, grouped by role. ★ = changed or added by the late-log feature.
+Every source file, grouped by role. ★ = changed or added by the late-log feature, ◆ = by the notifications feature.
 
 ```text
 Duo-Gym-App/
-├── proxy.ts                      Request gate (Next 16 "proxy", formerly middleware): auth redirects / 401s
+├── proxy.ts                 ◆    Request gate (Next 16 "proxy", formerly middleware): auth redirects / 401s
 ├── next.config.ts                Next config + PWA (service worker) wrapper
 ├── prisma.config.ts              Prisma CLI config: schema path, migrations path, seed command, DATABASE_URL
-├── package.json                  Scripts (dev/build/start/test/db:*), deps, Node >= 20.19
-├── tsconfig.json                 Strict TS, "@/*" → repo root alias
-├── eslint.config.mjs             next/core-web-vitals + next/typescript; ignores generated SW files
+├── package.json             ◆    Scripts (dev/build/start/test/test:coverage/cron:notify/db:*), deps, Node >= 20.19
+├── tsconfig.json            ◆    Strict TS, "@/*" → repo root alias; excludes coverage/
+├── eslint.config.mjs        ◆    next/core-web-vitals + next/typescript; ignores generated SW files + coverage/
+├── .c8rc.json               ◆    Coverage scope + 100% thresholds for the notification feature
+├── .env.example             ◆    Shape of every env var (placeholders only; tracked via !.env.example)
 ├── postcss.config.mjs            Tailwind v4 PostCSS plugin
 │
 ├── app/                          Next.js App Router
@@ -77,19 +82,21 @@ Duo-Gym-App/
 │   ├── login/page.tsx            Public login screen
 │   ├── (app)/                    Route group: everything behind login
 │   │   ├── layout.tsx            requireUser() guard + AppShell chrome
-│   │   ├── page.tsx         ★    "/" Dashboard
+│   │   ├── page.tsx         ★    "/" Home (Figma redesign)
 │   │   ├── log/[date]/page.tsx ★ "/log/YYYY-MM-DD" Log/edit a day's workout
 │   │   ├── program/page.tsx      "/program" Weekly schedule editor
 │   │   ├── history/page.tsx      "/history" Attendance heatmaps + recent sessions
 │   │   ├── info/page.tsx         "/info" Progress charts + buddy panel
-│   │   └── settings/page.tsx     "/settings" Profile + password
+│   │   └── settings/page.tsx ◆   "/settings" Profile + notifications + password
 │   └── api/                      JSON route handlers (see §10)
 │       ├── auth/login, auth/logout
 │       ├── buddy/generate-code, buddy/connect, buddy/disconnect
 │       ├── schedule
 │       ├── exercises, exercises/[id]
 │       ├── workouts           ★, workouts/[date]
-│       └── settings/profile, settings/password
+│       ├── settings/profile, settings/password
+│       ├── notifications/preferences, notifications/subscriptions ◆
+│       └── cron/notifications ◆  Secret-protected sweep, called by the scheduler
 │
 ├── lib/                          Server-side domain logic (no React)
 │   ├── db.ts                     PrismaClient singleton
@@ -101,28 +108,42 @@ Duo-Gym-App/
 │   ├── late-log.ts          ★    Late-log eligibility + weekly allowance
 │   ├── buddy.ts                  Pairing codes, connect/disconnect
 │   ├── attendance.ts             Per-day completed/missed/rest classification
+│   ├── home.ts                   Home screen data: week strip, weekly score change, session volumes (SQL), effort summary
+│   ├── notification-rules.ts ◆   Pure reminder rules: constants, HH:MM ↔ minutes, dueReminders, buildReminder (Prisma-free, client-safe)
+│   ├── notifications.ts     ◆    Preferences, push subscriptions, sendDueNotifications (the cron sweep)
+│   ├── push.ts              ◆    Server-only Web Push: VAPID config, endpoint allowlist, sendPush (web-push)
+│   ├── push-client.ts       ◆    Browser-side subscribe/unsubscribe helpers (browser APIs injected for tests)
+│   ├── cron-auth.ts         ◆    CRON_SECRET bearer check (constant-time)
 │   └── utils.ts                  cn() class-name merge
 │
+├── worker/                  ◆    Custom service-worker code (next-pwa bundles it into public/worker-*.js)
+│   ├── index.ts                  Entry: registers the handlers on `self`
+│   └── push.ts                   push → showNotification, notificationclick → focus/open (same-origin only)
+│
 ├── components/                   React components (see §11)
-│   ├── ui/                       Design-system primitives
+│   ├── ui/                       Design-system primitives (Switch ◆ gained an aria `label` prop)
 │   ├── nav/                      AppShell, SplashScreen
-│   ├── auth/ dashboard/ log/ program/ history/ progress/ buddy/ settings/
-│   └── dashboard/LateLogBanner.tsx ★
+│   ├── auth/ log/ program/ history/ progress/ buddy/ settings/
+│   ├── home/                     Home screen: HomeCard/HomeLabel/Trend, WeekStrip, GymScoreCard, BuddyScoreCard, EffortCard, ActivityTimeline, LateLogBanner ★
+│   └── settings/NotificationSettings.tsx ◆
 │
 ├── prisma/
-│   ├── schema.prisma        ★    Data model (§7)
-│   ├── migrations/               20260915000000_init, 20260928000000_late_log ★
+│   ├── schema.prisma        ★◆   Data model (§7)
+│   ├── migrations/               20260915000000_init, 20260928000000_late_log ★, 20261008000000_notifications ◆
 │   └── seed.ts                   Creates/updates the two accounts + default schedule + pairing
 │
 ├── scripts/
 │   ├── dev-db.mjs                Local embedded Postgres (PGlite) on :5433
-│   └── generate-icons.mjs        Builds PWA icons + favicon from public/icons/logoGym.png
+│   ├── generate-icons.mjs        Builds PWA icons + favicon from public/icons/logoGym.png
+│   ├── notify-cron.mjs      ◆    `npm run cron:notify`: calls the sweep endpoint (Railway cron service)
+│   └── test-coverage.mjs    ◆    `npm run test:coverage`: tests under c8 in an ESM sandbox (§13)
 │
-├── tests/                   ★    node:test suites (§13)
-│   ├── helpers/test-db.ts        In-memory PGlite on :5434, migrated from prisma/migrations
-│   └── late-log.test.mts
+├── tests/                   ★◆   node:test suites (§13)
+│   ├── helpers/test-db.ts        In-memory PGlite (port per suite), migrated from prisma/migrations
+│   ├── late-log.test.mts    ★
+│   └── notification*.test.mts, push*.test.mts, worker.test.mts, notify-cron.test.mts ◆
 │
-├── public/                       manifest.json, icons/, images/ (+ generated sw.js/workbox at build)
+├── public/                       manifest.json, icons/, images/ (+ generated sw.js/workbox/worker-*.js at build)
 ├── DEPLOY.md                     Railway runbook
 ├── duo-tickets.md                Design/UX backlog (DUO-001..020)
 └── AGENTS.md / CLAUDE.md         Agent instructions (Next 16 has breaking changes; read node_modules/next/dist/docs)
@@ -141,6 +162,11 @@ flowchart LR
     subgraph Railway["Railway (production)"]
         N["Next.js 16 server<br/>npm run start"]
         P[("PostgreSQL<br/>Railway plugin")]
+        C["notify-cron service<br/>every 15 min"]
+    end
+
+    subgraph Push["Browser push services"]
+        PS["FCM · Mozilla · Apple · WNS"]
     end
 
     subgraph Local["Local dev"]
@@ -150,10 +176,13 @@ flowchart LR
 
     B -- "HTTPS: pages (RSC) + /api JSON<br/>cookie: duo_session (JWT)" --> N
     N -- "Prisma (DATABASE_URL)" --> P
+    C -- "POST /api/cron/notifications<br/>Bearer CRON_SECRET" --> N
+    N -- "Web Push (VAPID, encrypted)" --> PS
+    PS -- "push event → service worker" --> B
     ND -- Prisma --> PG
 ```
 
-There are no other external services: no email, no push notifications yet, and no third-party auth.
+The only external services are the browsers' own push services ([§9.12](#912-notifications)). No email and no third-party auth.
 
 ---
 
@@ -170,8 +199,9 @@ There are no other external services: no email, no push notifications yet, and n
 | Dates | `date-fns-tz` (only for "today in tz"); everything else is string math | `lib/dates.ts` |
 | Styling | Tailwind CSS v4 + CSS-variable tokens, `clsx` + `tailwind-merge` | `app/globals.css`, `lib/utils.ts` |
 | Motion / charts / icons | framer-motion, recharts, lucide-react | components |
-| PWA | `@ducanh2912/next-pwa` (Workbox) | `next.config.ts`, `public/manifest.json` |
-| Tests | `node:test` + `tsx`, real Postgres via PGlite | `tests/` |
+| PWA | `@ducanh2912/next-pwa` (Workbox) + custom worker | `next.config.ts`, `public/manifest.json`, `worker/` |
+| Push notifications | Web Push with VAPID via `web-push`; scheduled by a Railway cron service | `lib/push.ts`, `lib/notifications.ts`, `scripts/notify-cron.mjs` |
+| Tests | `node:test` + `tsx`, real Postgres via PGlite; jsdom + Testing Library for components; c8 coverage | `tests/`, `scripts/test-coverage.mjs` |
 | Hosting | Railway (Nixpacks), Postgres plugin | `DEPLOY.md` |
 
 ---
@@ -200,21 +230,29 @@ flowchart TB
         buddy["buddy"]
         attendance["attendance"]
         auth["auth"]
+        notifications["notifications"]
+        push["push (web-push)"]
+        cronauth["cron-auth"]
     end
     subgraph L5["Foundation"]
         session["session (edge-safe)"]
         dates["dates"]
         db["db (Prisma)"]
         utils["utils"]
+        rules["notification-rules (pure)"]
+        pushclient["push-client (browser)"]
+    end
+    subgraph SW["Service worker"]
+        worker["worker/index → worker/push"]
     end
 
     proxy --> session
     layout --> pageauth
-    pages --> auth & buddy & scoring & latelog & attendance & dates & db
+    pages --> auth & buddy & scoring & latelog & attendance & dates & db & notifications & push & rules
     pages --> comps
-    api --> auth & buddy & scoring & latelog & dates & db
+    api --> auth & buddy & scoring & latelog & dates & db & notifications & push & cronauth & rules
     comps -. "fetch('/api/...')" .-> api
-    comps --> utils & dates
+    comps --> utils & dates & rules & pushclient
     comps -. "LATE_LOG constant only" .-> latelog
 
     pageauth --> auth & scoring & db
@@ -223,9 +261,11 @@ flowchart TB
     attendance --> dates & db
     buddy --> db
     auth --> session & db
+    notifications --> rules & dates & db
+    push --> rules
 ```
 
-> `components/dashboard/LateLogBanner.tsx` imports `LATE_LOG` from `lib/late-log.ts`. That works because it's a server component, but it means the module (and Prisma) is in its import graph. If the banner ever becomes a client component, move `LATE_LOG` into a constants file.
+> `components/home/LateLogBanner.tsx` imports `LATE_LOG` from `lib/late-log.ts`. That works because it's a server component, but it means the module (and Prisma) is in its import graph. If the banner ever becomes a client component, move `LATE_LOG` into a constants file.
 
 ---
 
@@ -279,6 +319,9 @@ erDiagram
     User ||--o| PairingCode : "may hold one"
     User ||--o| BuddyPair : "as userA"
     User ||--o| BuddyPair : "as userB"
+    User ||--o| NotificationPreference : "reminder settings"
+    User ||--o{ PushSubscription : "devices (max 5)"
+    User ||--o{ NotificationDelivery : "reminders sent"
     ScheduleDay ||--o{ Exercise : contains
     ScheduleDay |o--o{ WorkoutLog : "template for"
     WorkoutLog ||--o{ SetLog : contains
@@ -363,6 +406,29 @@ erDiagram
         datetime weekStart "Monday of week it was USED in"
         datetime createdAt
     }
+    NotificationPreference {
+        string userId PK,FK
+        bool gymDayEnabled "default true"
+        int gymDayMinute "minutes after local midnight, default 480 (08:00)"
+        bool logReminderEnabled "default true"
+        int logReminderMinute "default 1200 (20:00)"
+        datetime updatedAt
+    }
+    PushSubscription {
+        string id PK
+        string userId FK
+        string endpoint UK "push-service URL, allowlisted hosts only"
+        string p256dh "browser public key (payload encryption)"
+        string auth "browser auth secret"
+        datetime createdAt
+    }
+    NotificationDelivery {
+        string id PK
+        string userId FK
+        enum type "GYM_DAY, LOG_REMINDER"
+        datetime date "user's local day; UK with userId+type"
+        datetime createdAt "pruned after 14 days"
+    }
 ```
 
 ### 7.2 Constraints & indexes
@@ -376,6 +442,9 @@ erDiagram
 | WorkoutLog | `(userId, date)` | — | One log per user per day (upsert key) |
 | ScoreEvent | — | `(userId, date)` | Feed + range deletes in recompute |
 | LateLog | `(userId, targetDate)` | `(userId, weekStart)` | One claim per day; fast "used this week" count |
+| NotificationPreference | `userId` (PK) | — | One settings row per user; no row = defaults |
+| PushSubscription | `endpoint` | `userId` | A browser subscription belongs to exactly one user; per-user device count |
+| NotificationDelivery | `(userId, type, date)` | `createdAt` | **At most one of each reminder per user per day**, enforced by `INSERT … ON CONFLICT DO NOTHING`; pruning by age |
 
 ### 7.3 Delete behaviour
 
@@ -392,6 +461,7 @@ erDiagram
 |---|---|
 | `20260915000000_init` | Enums `Weekday`, `ScoreEventType`; all tables except LateLog |
 | `20260928000000_late_log` | `LateLog` table, its unique + index, FK to User |
+| `20261008000000_notifications` | Enum `NotificationType`; `NotificationPreference`, `PushSubscription`, `NotificationDelivery` tables, their uniques/indexes, FKs to User (CASCADE) |
 
 - **Creating:** run `npm run db:migrate`, which is `prisma migrate dev` and generates a new folder. Commit the SQL.
 - **Applying:** `npm run start` runs `prisma migrate deploy` first, both locally and on Railway.
@@ -415,7 +485,7 @@ Nothing runs on a schedule. Missed days get scored **when someone next looks**:
 
 - `User.lastEvaluatedDate` is the **watermark**: every scheduled gym day up to and including it has already been scored.
 - `ensureScoresUpToDate(userId)` scores every day from `watermark + 1` (or the account's creation date) through **yesterday**, then moves the watermark to yesterday.
-- It runs on every authenticated page load (via `requireUser`), for the buddy on dashboard load, and before every workout save.
+- It runs on every authenticated page load (via `requireUser`), for the buddy on home load, and before every workout save.
 - Today is never scored as missed, because the day isn't over yet. A log *today* is scored immediately by `applyTodayCompletion`, which moves the watermark to today.
 
 ### 8.3 The score ledger
@@ -573,7 +643,7 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> Pending: day starts (user tz)
     Pending --> Completed: log saved today<br/>applyTodayCompletion +10/+35
-    Pending --> Missed: day ends unlogged<br/>next ensureScoresUpToDate: −15 self, −10 buddy
+    Pending --> Missed: day ends unlogged<br/>next ensureScoresUpToDate → −15 self, −10 buddy
     Missed --> Completed: late log (yesterday only, allowance)<br/>recompute reverses −15/−10, then +10/+35
     Completed --> Missed: log deleted (past day)<br/>recompute → re-evaluated as missed
     Completed --> Pending: log deleted (today)<br/>watermark rewinds to yesterday
@@ -589,9 +659,9 @@ stateDiagram-v2
 - **Cost:** only a **scheduled gym day** uses an allowance. A rest day, or no schedule, is free.
 - **Re-logging is free:** if the day already has a `LateLog` claim (the log was saved, deleted, and saved again), it doesn't cost another allowance. **Deleting a late log doesn't refund it**, which is why claims live in their own table and not on `WorkoutLog`.
 - **Race-safe:** `claimLateLog` re-counts inside the save transaction and throws `LateLogLimitError` if the limit was reached at the same moment. The whole save rolls back and the API returns 403.
-- **One source of truth:** `getLateLogEligibility` is used by the API, the log page and the dashboard banner, so they always agree.
+- **One source of truth:** `getLateLogEligibility` is used by the API, the log page and the home banner, so they always agree.
 
-**Files:** `lib/late-log.ts`, `lib/dates.ts` (`startOfWeek`), `lib/scoring.ts` (", logged late" reason), `app/api/workouts/route.ts`, `app/(app)/page.tsx`, `app/(app)/log/[date]/page.tsx`, `components/dashboard/LateLogBanner.tsx`, `prisma/migrations/20260928000000_late_log`, `tests/late-log.test.mts`
+**Files:** `lib/late-log.ts`, `lib/dates.ts` (`startOfWeek`), `lib/scoring.ts` (", logged late" reason), `app/api/workouts/route.ts`, `app/(app)/page.tsx`, `app/(app)/log/[date]/page.tsx`, `components/home/LateLogBanner.tsx` (was `components/dashboard/`), `prisma/migrations/20260928000000_late_log`, `tests/late-log.test.mts`
 
 ```mermaid
 flowchart TD
@@ -607,7 +677,7 @@ flowchart TD
 ```
 
 **Where it appears in the UI**
-- **Dashboard:** `LateLogBanner` ("Forgot to log Tue, Oct 6?") shows only when yesterday is allowed **and** uses an allowance, meaning a missed gym day with a penalty to recover.
+- **Home:** `LateLogBanner` ("Forgot to log Tue, Oct 6?") shows only when yesterday is allowed **and** uses an allowance, meaning a missed gym day with a penalty to recover.
 - **Log page:** an ember notice says whether saving will use an allowance. If the day isn't eligible, the reason message replaces the form.
 
 ### 9.6 Buddy pairing
@@ -633,17 +703,30 @@ stateDiagram-v2
     Paired --> Unpaired: POST disconnect (either)
 ```
 
-### 9.7 Dashboard
+### 9.7 Home
 
-`app/(app)/page.tsx` loads these in parallel: today's schedule and exercises, today's log, the buddy id, the last 6 score events, and yesterday's late-log eligibility. If paired, it then catches up the **buddy's** scores and loads the buddy's status for *their* today (their own timezone).
+**What:** the `/` screen, rebuilt from the Figma "Home" frame. A Mon–Sun week strip, the gym score with this week's change and a big **Log** button, the buddy's score (3D avatar), an "Overall effort" chart built from every session ever logged, and the last 6 score events.
+
+**Rules**
+- **Week strip** (`buildWeekStrip`): today is **grey** (`--today`). Past days are **brand red** (`--brand`, Figma `#e53935`) if a completed log exists (even off-schedule), otherwise **ink/black** (rest *or* missed). Future days follow the current schedule: red for a planned gym day, black for a rest day.
+- **This week** (`weeklyScoreChange`): net `ScoreEvent.points` dated on/after Monday of the current week (`startOfWeek`). The buddy's change uses the buddy's own timezone. Shown by `Trend`: gains red `+20 ↑`, losses ink `−15 ↓`, zero faint `+0`.
+- **Overall effort** (`loadSessionVolumes` → `summarizeEffort`): one SQL query sums `weight × reps` per **completed** `WorkoutLog` (a log with no sets counts as 0). The chart shows the last `HOME.EFFORT_BARS` = **7** sessions, scaled to the tallest, newest in red, labelled by day of month, left-padded with empty tracks. Non-zero fills are raised to at least 8% so the rounded cap stays visible. Underneath: the **lifetime** total (`formatVolume`: 950 · 12.4k · 1.3M) and `growthPct`, the share of that total added this week (hidden when nothing was lifted before this week).
+- **Log button** links to `/log/<today>`; it reads **Edit** once today is logged.
+- **Buddy card**: the static avatar `public/3D-image/3d-image-girl-afro.png` (imported statically, see gotcha 18) with the buddy's score and weekly change. With no buddy it's greyed out and links to `/info` to connect.
+- **Late-log banner** stays (the Figma frame doesn't show it) between the score card and the two-up row, restyled as a home card.
+- **Chrome:** on `/` only, `AppShell` paints the page `bg-canvas` and hides the mobile top bar (home has its own "Home" title + initial avatar → `/settings`). The mobile bottom nav is the Figma floating pill on every page, with the same four destinations as before.
+
+**Files:** `app/(app)/page.tsx`, `lib/home.ts`, `components/home/*`, `components/nav/AppShell.tsx`, `app/globals.css` (home tokens), `app/layout.tsx` (DM Sans / DM Mono), `tests/home.test.mts`, `tests/home-components.test.mts`. Removed: `components/dashboard/{StatsRow,TodayCard,BuddyStatusCard,RecentEventsFeed}.tsx`.
 
 ```mermaid
 flowchart TB
-    D["DashboardPage (server)"] --> SR["StatsRow<br/>score, streak, best"]
-    D --> TC["TodayCard<br/>rest day / exercises / Log button"]
-    D --> LB["LateLogBanner<br/>(only if yesterday recoverable)"]
-    D --> BS["BuddyStatusCard<br/>Rest day / Logged today / Not logged yet"]
-    D --> RF["RecentEventsFeed<br/>last 6 ScoreEvents"]
+    H["HomePage (server)"] -->|"Promise.all"| Q["gym weekdays · this week's logs · buddy id · last 6 events<br/>yesterday's late-log eligibility · weeklyScoreChange · loadSessionVolumes"]
+    Q --> WS["buildWeekStrip → WeekStrip"]
+    Q --> GS["GymScoreCard<br/>score, Trend, Log/Edit"]
+    Q --> LB["LateLogBanner<br/>(only if yesterday recoverable)"]
+    H -->|"if paired: ensureScoresUpToDate(buddy)<br/>+ weeklyScoreChange in buddy tz"| BC["BuddyScoreCard"]
+    Q --> EF["summarizeEffort → EffortCard"]
+    Q --> AT["ActivityTimeline"]
 ```
 
 ### 9.8 History & attendance
@@ -659,17 +742,167 @@ For every exercise the user owns that has logged sets: one point per day (the **
 ### 9.10 Settings
 
 - **Profile** (`PATCH /api/settings/profile`): display name (saved on blur), timezone (picked from a list; the server validates it with `Intl.DateTimeFormat`), avatar color (`#RRGGBB`). Changing the timezone changes what "today" means for scoring from then on.
+- **Notifications** (`NotificationSettings`): this-device switch + reminder settings. See [§9.12](#912-notifications).
 - **Password** (`PATCH /api/settings/password`): needs the current password; the new one must be 8–200 characters.
 
 ### 9.11 PWA
 
-`next-pwa` generates `public/sw.js` + Workbox chunks **at build time**. They're gitignored, and PWA is disabled in dev. `public/manifest.json` sets standalone portrait display with theme `#ff3131`. Icons come from `scripts/generate-icons.mjs` (192, 512, maskable-512, apple-touch 180, favicon.ico). `proxy.ts` lets the manifest, SW, icons and images through without auth.
+`next-pwa` generates `public/sw.js` + Workbox chunks **at build time**. They're gitignored, and PWA is disabled in dev. `public/manifest.json` sets standalone portrait display with theme `#ff3131`. Icons come from `scripts/generate-icons.mjs` (192, 512, maskable-512, apple-touch 180, favicon.ico).
+
+**Custom worker:** next-pwa finds `worker/index.ts` (its default `customWorkerSrc` is `worker`), bundles it to `public/worker-<hash>.js` and adds `importScripts("/worker-<hash>.js")` to `sw.js`. That's where the push handlers live ([§9.12](#912-notifications)).
+
+`proxy.ts` lets the manifest, `sw.js`, icons, images **and the generated chunks** (`/workbox-*.js`, `/swe-worker-*.js`, `/worker-*.js`, `/fallback-*.js`, matched by an anchored regex) through without auth. The service worker can install or update while logged out (on `/login`), and a redirected `importScripts` would make the install fail.
+
+### 9.12 Notifications
+
+**What:** Opt-in push notifications on each device. Two reminders, both only on **scheduled gym days that aren't logged yet**:
+- **Gym day** (default 08:00): "Push Day is on the plan today — 4 exercises lined up. Keep the streak alive." Tapping opens home.
+- **Log reminder** (default 20:00): "Log today's workout before midnight. Missing it costs you 15 points, and Sam loses 10." Tapping opens `/log/<today>`.
+
+Each user turns notifications on per device in **Settings → Notifications**, and chooses per reminder whether it's on and at what time (in their own timezone).
+
+**How it works:** standard Web Push. The browser creates a subscription (an endpoint URL at its push service plus encryption keys) and the app stores it. A scheduler calls the secret-protected sweep endpoint every 15 minutes. The sweep works out each user's local day and time, decides which reminders are due, records each one, and sends an encrypted push signed with the app's VAPID key. The service worker shows it as a notification, even when the app is closed.
+
+**Rules** (`NOTIFICATIONS` in `lib/notification-rules.ts`)
+- **Only when useful:** nothing on rest days, with no schedule row, or once today's `WorkoutLog` exists. Logging early also cancels the evening reminder.
+- **Send window:** a reminder is due from its time until `SEND_WINDOW_MINUTES = 180` later. A late or skipped cron run still delivers it; after the window it's dropped, never sent hours late. The window doesn't wrap past midnight.
+- **At most once per day:** `NotificationDelivery (userId, type, date)` is claimed with `INSERT … ON CONFLICT DO NOTHING` *before* sending. Re-running the sweep, or two overlapping runs, never double-sends. A send that fails isn't retried (at-most-once beats spamming).
+- **Both at once:** if the two windows overlap (e.g. gym day 19:00, log reminder 20:00, first run 20:05), both are sent.
+- **Timezone:** day and minute come from `nowInTz(user.timezone)`. A user with an invalid timezone is skipped and counted in `errors`; the sweep carries on for the others.
+- **Defaults:** no `NotificationPreference` row = both on, 08:00 / 20:00. The row is created on the first change. Times are stored as minutes after midnight, and the API speaks `"HH:MM"`.
+- **Devices:** `MAX_SUBSCRIPTIONS_PER_USER = 5` (409 above that). Re-registering the same endpoint just refreshes its keys. A push service answering **404/410** means the subscription is dead, so it's deleted and not retried for the next reminder in the same run.
+- **Switching accounts on one device:** an endpoint registered by the other account moves to the caller, but **only if the request carries the same `p256dh` + `auth` keys**. Only the browser holding that subscription knows them, so knowing the endpoint URL alone can't take over someone's device. The failure answers 400 like any invalid subscription, so it doesn't confirm the endpoint exists.
+- **Retention:** delivery rows older than `DELIVERY_RETENTION_DAYS = 14` are pruned at the end of every sweep.
+- **The quoted penalties** (15 / 10) are copies of `SCORING` so the rules module stays Prisma-free. A test fails if they ever drift.
+- **Off by default on the server:** without valid `VAPID_*` env vars, subscribing returns 503, the cron returns 503, and the settings card says notifications aren't set up.
+
+**Security** (each item has tests)
+| Threat | Defense |
+|---|---|
+| Anyone triggering the sweep | `CRON_SECRET` bearer token, compared in constant time on SHA-256 digests. An unset secret or one under 32 chars keeps the endpoint **closed** (401, same as a wrong secret) and logs a warning. The response holds only counts. |
+| SSRF: the server POSTs to whatever endpoint a client registers | Endpoint must be `https`, on an allowlisted push-service host (`fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com`, `*.push.apple.com`, `*.notify.windows.com`), with no port or credentials, ≤ 1024 chars. |
+| Mass assignment / junk input | zod `strictObject` everywhere (unknown keys like `userId` → 400). Keys must be exact base64url lengths (p256dh 87, auth 22). Times must match `HH:MM`. |
+| Touching another user's data | Every query is scoped by the session `userId`. DELETE only removes the caller's own endpoint and answers the same either way. Takeover needs the subscription's keys (above). |
+| Table flooding | 5 devices per user; deliveries pruned after 14 days. |
+| Open redirect from a notification click | The service worker only opens same-origin paths (`safeAppPath`: must start with `/`, not `//` or `/\`, ≤ 200 chars). Anything else opens `/`. |
+| Hostile or garbled push payload | The worker falls back to a generic notification and truncates title/body/tag (80/240/32). Text is never rendered as HTML. |
+| Key leakage | Only `VAPID_PUBLIC_KEY` reaches the browser, as a prop read at request time (not `NEXT_PUBLIC_*`, so rotating doesn't need a rebuild). A test asserts the private key isn't in the rendered props. |
+| Secret sent in clear text | `notify-cron.mjs` refuses a non-`https` `APP_URL` (except `localhost`). |
+| Payload privacy | Payloads are encrypted end-to-end (RFC 8291); they contain only reminder text, the buddy's display name and an app path. |
+
+**Files:** `lib/notification-rules.ts`, `lib/notifications.ts`, `lib/push.ts`, `lib/push-client.ts`, `lib/cron-auth.ts`, `lib/dates.ts` (`nowInTz`), `worker/index.ts`, `worker/push.ts`, `app/api/notifications/preferences/route.ts`, `app/api/notifications/subscriptions/route.ts`, `app/api/cron/notifications/route.ts`, `app/(app)/settings/page.tsx`, `components/settings/NotificationSettings.tsx`, `components/ui/Switch.tsx` (`label`), `proxy.ts`, `prisma/schema.prisma`, `prisma/migrations/20261008000000_notifications`, `scripts/notify-cron.mjs`, `tests/notification*.test.mts`, `tests/push*.test.mts`, `tests/worker.test.mts`, `tests/notify-cron.test.mts`, `DEPLOY.md` (§8 cron service)
+
+**Turning it on for a device**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant NS as NotificationSettings
+    participant PC as lib/push-client
+    participant SW as Service worker / PushManager
+    participant PS as Push service (FCM/Apple/…)
+    participant R as POST /api/notifications/subscriptions
+    participant DB
+
+    U->>NS: flip "This device"
+    NS->>PC: enablePush(env, vapidPublicKey)
+    PC->>U: Notification.requestPermission()
+    alt denied / dismissed
+        PC-->>NS: {ok:false, "Notifications are blocked…"}
+    end
+    PC->>SW: serviceWorker.ready (10 s timeout, SW is off in next dev)
+    PC->>SW: pushManager.getSubscription() ?? subscribe(userVisibleOnly, VAPID key)
+    SW->>PS: register
+    PS-->>SW: endpoint + p256dh + auth
+    PC->>R: subscription.toJSON()
+    R->>R: session · VAPID configured (else 503) · zod strict + endpoint allowlist (else 400)
+    R->>DB: saveSubscription: endpoint taken by other user w/o same keys → 400 · ≥ 5 devices → 409 · else upsert
+    alt server refused
+        PC->>SW: subscription.unsubscribe() (browser and server stay in agreement)
+    end
+    R-->>NS: {ok:true} → "Notifications are on here."
+```
+
+**The cron sweep**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as notify-cron (Railway, */15)
+    participant R as POST /api/cron/notifications
+    participant N as sendDueNotifications
+    participant DB
+    participant P as lib/push → push service
+    participant W as Service worker
+
+    C->>R: Authorization: Bearer CRON_SECRET
+    R->>R: isAuthorizedCronRequest (else 401) · getVapidConfig (else 503)
+    R->>N: send = sendPush(·, ·, vapid)
+    N->>DB: users with ≥ 1 PushSubscription (+ prefs, buddy name)
+    loop each user (errors isolated per user)
+        N->>N: nowInTz(timezone) → local date + minute
+        N->>DB: today's ScheduleDay (+ exercise count), today's WorkoutLog
+        N->>N: skip unless gym day and not logged · dueReminders(prefs, minute)
+        loop each due type
+            N->>DB: claimDelivery: INSERT … ON CONFLICT DO NOTHING
+            alt already claimed
+                N->>N: skip (already sent today)
+            else claimed
+                N->>N: buildReminder(type, label, exercises, buddy)
+                N->>P: sendPush to every live device
+                P-->>N: sent · failed · gone (404/410 → delete subscription)
+                P-)W: encrypted push
+                W->>W: toNotification → showNotification
+            end
+        end
+    end
+    N->>DB: prune deliveries older than 14 days
+    N-->>R: {checked, due, sent, failed, removed, errors}
+    R-->>C: 200 JSON (counts only)
+```
+
+**Is a reminder due?** (`dueReminders` + the sweep's pre-check)
+
+```mermaid
+flowchart TD
+    S["user has ≥ 1 device"] --> G{"today (user tz) is a<br/>scheduled gym day?"}
+    G -- no --> X["nothing"]
+    G -- yes --> L{"WorkoutLog for today?"}
+    L -- yes --> X
+    L -- no --> T{"for each reminder:<br/>enabled AND time ≤ now < time + 180 min?"}
+    T -- no --> X
+    T -- yes --> D{"NotificationDelivery<br/>(user, type, today) exists?"}
+    D -- yes --> X2["skip: already sent today"]
+    D -- no --> SEND["claim → build text → push to each device"]
+```
+
+**One reminder through one day**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Waiting: day starts (user tz)
+    Waiting --> Cancelled: workout logged / rest day / reminder disabled
+    Waiting --> Due: local time reaches the reminder time
+    Due --> Claimed: sweep inserts NotificationDelivery
+    Due --> Missed: 180-min window passes with no sweep run
+    Claimed --> Delivered: push service accepts (≥ 1 device)
+    Claimed --> Failed: every device fails (not retried)
+    Delivered --> [*]
+    Failed --> [*]
+    Missed --> [*]
+    Cancelled --> [*]
+```
+
+**In the browser** (`worker/push.ts`): `push` → `toNotification` (safe defaults, truncation, icon `/icons/icon-192.png`, `tag` = type so a newer reminder replaces an older one of the same type) → `registration.showNotification`. `notificationclick` → close → `focusOrOpen`: focus a tab already on that URL, otherwise `clients.openWindow(origin + safe path)`.
+
+**Platform notes:** iPhone/iPad need iOS 16.4+ and the app **added to the Home Screen** (Safari tabs have no `PushManager`, so the card explains this). The SW is disabled in `next dev`, so turning on notifications only works on a production build (`npm run build && npm run start`).
 
 ---
 
 ## 10. API reference
 
-Every endpoint returns JSON. Every endpoint except login returns **401** `{error:"Not authenticated"}` without a session. Request bodies are validated with zod, and an invalid body returns **400**.
+Every endpoint returns JSON. Every endpoint except login and the cron sweep returns **401** `{error:"Not authenticated"}` without a session. Request bodies are validated with zod, and an invalid body returns **400**.
 
 | Method & path | Body | Success | Errors |
 |---|---|---|---|
@@ -686,6 +919,10 @@ Every endpoint returns JSON. Every endpoint except login returns **401** `{error
 | `POST /api/buddy/disconnect` | — | `{ok}` | — |
 | `PATCH /api/settings/profile` | any of `{displayName 1–40, timezone IANA, avatarColor #hex6}` | `{user}` | 400 |
 | `PATCH /api/settings/password` | `{currentPassword, newPassword 8–200}` | `{ok}` | 400 wrong current / too short |
+| `PATCH /api/notifications/preferences` | strict, ≥ 1 of `{gymDayEnabled, gymDayTime "HH:MM", logReminderEnabled, logReminderTime "HH:MM"}` | `{preferences}` (all four, times as `"HH:MM"`) | 400 invalid / unknown key / empty |
+| `POST /api/notifications/subscriptions` | strict `PushSubscription.toJSON()`: `{endpoint (allowlisted https, ≤1024), expirationTime?, keys:{p256dh 87, auth 22}}` | `{ok}` | 400 invalid / endpoint owned by someone else without matching keys · 409 5 devices · 503 VAPID not configured |
+| `DELETE /api/notifications/subscriptions` | strict `{endpoint 1–1024}` | `{ok}` (same whether or not it was yours) | 400 |
+| `POST /api/cron/notifications` | — · header `Authorization: Bearer $CRON_SECRET` · **no session** | `{checked, due, sent, failed, removed, errors}` | 401 missing/wrong secret, or CRON_SECRET unset/short · 503 VAPID not configured |
 
 ---
 
@@ -697,20 +934,20 @@ Pages are **server components**. They query Prisma directly and pass plain props
 
 | Client (`"use client"`) | Server (no directive) |
 |---|---|
-| LoginForm, SetLogger, AppShell, SplashScreen, DayCard, ExerciseRow, AddExerciseForm, PairingPanel, BuddyProfileCard, ProfileForm, PasswordForm, ExerciseProgressCard, AnimatedNumber, Button, Switch | StatsRow, TodayCard, BuddyStatusCard, RecentEventsFeed, LateLogBanner, AttendanceHeatmap, Card, Badge, Input, StreakFlame, ProgressRing |
+| LoginForm, SetLogger, AppShell, SplashScreen, DayCard, ExerciseRow, AddExerciseForm, PairingPanel, BuddyProfileCard, ProfileForm, NotificationSettings, PasswordForm, ExerciseProgressCard, AnimatedNumber, Button, Switch | WeekStrip, GymScoreCard, BuddyScoreCard, EffortCard, ActivityTimeline, HomeCard/HomeLabel/Trend, LateLogBanner, AttendanceHeatmap, Card, Badge, Input, StreakFlame, ProgressRing |
 
 ### 11.2 Component tree
 
 ```mermaid
 flowchart LR
     RL["app/layout.tsx"] --> LG["login/page"] --> LF["LoginForm"]
-    RL --> AL["(app)/layout → AppShell<br/>(sidebar / top bar / bottom nav, SplashScreen)"]
-    AL --> DP["/ Dashboard"] --> SR["StatsRow"] & TC["TodayCard"] & LB["LateLogBanner"] & BS["BuddyStatusCard"] & RF["RecentEventsFeed"]
+    RL --> AL["(app)/layout → AppShell<br/>(sidebar / top bar / pill bottom nav, SplashScreen)"]
+    AL --> DP["/ Home"] --> WS["WeekStrip"] & GS["GymScoreCard"] & LB["LateLogBanner"] & BC["BuddyScoreCard"] & EF["EffortCard"] & AT["ActivityTimeline"]
     AL --> LP["/log/[date]"] --> SL["SetLogger"]
     AL --> PR["/program"] --> DC["DayCard"] --> ER["ExerciseRow"] & AF["AddExerciseForm"]
     AL --> HI["/history"] --> HM["AttendanceHeatmap ×2"]
     AL --> IN["/info"] --> EPC["ExerciseProgressCard"] & BPC["BuddyProfileCard"] & PP["PairingPanel"]
-    AL --> ST["/settings"] --> PF["ProfileForm"] & PWF["PasswordForm"]
+    AL --> ST["/settings"] --> PF["ProfileForm"] & NSC["NotificationSettings"] & PWF["PasswordForm"]
 ```
 
 ### 11.3 UI kit (`components/ui/`)
@@ -721,14 +958,14 @@ flowchart LR
 | `Card`, `CardHeader`, `CardTitle` | Rounded surface; header row; muted title |
 | `Input`, `Label` | Styled field (forwards ref) + label |
 | `Badge` | `tone`: accent · success · danger · neutral · ember |
-| `Switch` | `checked`, `onChange(bool)`, `role="switch"` |
+| `Switch` | `checked`, `onChange(bool)`, `disabled?`, `label?` (→ `aria-label`, for switches without a visible `<label>`), `role="switch"` |
 | `AnimatedNumber` | Tweens between values (framer-motion, writes textContent directly) |
 | `StreakFlame` | Flame SVG, `active` toggles ember/faint |
 | `ProgressRing` | SVG ring 0..1. **Currently unused.** |
 
 ### 11.4 Design tokens
 
-`app/globals.css` defines CSS variables (`--bg`, `--surface`, `--surface-raised`, `--border`, `--text`, `--text-muted`, `--text-faint`, `--accent`, `--accent-strong`, `--accent-soft`, `--ember`, `--ember-soft`, `--success`, `--success-soft`, `--danger`, `--danger-soft`, `--shadow-soft`, `--shadow-raised`) for light mode, OS dark mode, and `[data-theme="dark"]`. `@theme inline` maps them to Tailwind utilities like `bg-accent` and `text-text-muted`. **Always use tokens, never raw hex.** The few remaining hex values (`#02010a`, `#ffffff` in the history legend and heatmap) are tracked in `duo-tickets.md` DUO-007/008.
+`app/globals.css` defines CSS variables (`--bg`, `--surface`, `--surface-raised`, `--border`, `--text`, `--text-muted`, `--text-faint`, `--accent`, `--accent-strong`, `--accent-soft`, `--ember`, `--ember-soft`, `--success`, `--success-soft`, `--danger`, `--danger-soft`, `--shadow-soft`, `--shadow-raised`) for light mode, OS dark mode, and `[data-theme="dark"]`. `@theme inline` maps them to Tailwind utilities like `bg-accent` and `text-text-muted`. The home redesign adds a second palette from Figma: `--canvas` (#eeeeec page), `--card` (#f8f8f6), `--chip` (white buttons/nav), `--ink` (#1a1a1a) and `--on-ink`, `--ink-faint` (#8e8e8b), `--track` (#e2e2df), `--today` (#dcdcd9), `--hairline` (#d6d6d3), `--brand` (#e53935). In dark mode `--ink`/`--on-ink` swap, so "black" rest days and the Log button turn light. Fonts: `font-dm` (DM Sans) and `font-dm-mono` (DM Mono) via `next/font` in `app/layout.tsx`. The rest of the app still uses Geist. **Always use tokens, never raw hex.** The few remaining hex values (`#02010a`, `#ffffff` in the history legend and heatmap) are tracked in `duo-tickets.md` DUO-007/008.
 
 ---
 
@@ -754,6 +991,8 @@ Local `DATABASE_URL`:
 | `npm run build` | Production build (+ service worker) |
 | `npm run start` | `prisma migrate deploy && next start` |
 | `npm test` | Test suites ([§13](#13-testing)) |
+| `npm run test:coverage` | Test suites under c8; fails below the thresholds in `.c8rc.json`. HTML report in `coverage/` |
+| `npm run cron:notify` | Calls the notification sweep (`APP_URL`, `CRON_SECRET` needed). Production runs it from a Railway cron service |
 | `npm run lint` | ESLint |
 | `npm run db:migrate` | `prisma migrate dev`: create and apply a new migration |
 | `npm run db:seed` | `tsx prisma/seed.ts` |
@@ -763,17 +1002,34 @@ Local `DATABASE_URL`:
 
 ## 13. Testing
 
-- **Runner:** `node:test` through `tsx`. Command: `npm test` → `node --import tsx --test "tests/**/*.test.mts"`.
+- **Runner:** `node:test` through `tsx`. Command: `npm test` → `node --import tsx --experimental-test-module-mocks --test "tests/**/*.test.mts"`.
 - **Why `.mts`:** the package isn't `"type": "module"`, and the tests use top-level `await`.
-- **DB:** `tests/helpers/test-db.ts` starts an **in-memory** PGlite on port **5434**, applies every `prisma/migrations/*/migration.sql` in order, and sets `DATABASE_URL` **before** `@/lib/db` is imported, so the import must be dynamic. It never touches `.pglite-data`.
-- **Isolation:** each test creates its own users (`createUser`), so tests don't share state.
-- Tests compute dates from the real "today" in `UTC`, so they're stable on any day of the week.
+- **DB:** `tests/helpers/test-db.ts` starts an **in-memory** PGlite, applies every `prisma/migrations/*/migration.sql` in order, and sets `DATABASE_URL` **before** `@/lib/db` is imported, so the import must be dynamic. It never touches `.pglite-data`. `node --test` runs files in **parallel processes**, so each DB suite takes its own port: late-log **5434**, notifications **5435**, notification-routes **5436**, home **5437**. Pick a new port for a new DB suite.
+- **Isolation:** each test creates its own users (`createUser`), so tests don't share state. The notification sweep looks at *every* user with a device, so its tests clear `PushSubscription`/`NotificationDelivery` in `beforeEach`.
+- Tests compute dates from the real "today" in `UTC`, so they're stable on any day of the week. The sweep tests use a fixed instant (`2026-10-08`, a Thursday) and pass `now` in.
+- **Route handlers** are called directly with a `Request`. `cookies()` only exists inside a real Next request, so `@/lib/auth` is replaced with `mock.module` (that's what `--experimental-test-module-mocks` enables). Everything else (zod, Prisma, DB, proxy) is real.
+- **Components** render in **jsdom** with **Testing Library** (`tests/notification-settings.test.mts` installs the jsdom globals before importing React DOM). Browser push APIs are injected through the component's `env` prop.
+- **No network:** `web-push`'s `sendNotification` is replaced with `mock.method`. The cron-script suite runs a local HTTP server and spawns the real CLI.
 
 | Suite | Covers |
 |---|---|
 | `tests/late-log.test.mts` | `startOfWeek`; every `getLateLogEligibility` branch; `claimLateLog` week stamping and rollback at the limit; scoring after a late log (self and buddy penalties reversed, "logged late" reason, rest day free, delete doesn't refund) |
+| `tests/notification-rules.test.mts` | HH:MM ↔ minutes for all 1440 minutes; `TIME_PATTERN`; `nowInTz` across a date line; send-window edges; every `dueReminders` branch; reminder text; penalties match `SCORING` |
+| `tests/push.test.mts` | Endpoint allowlist (17 SSRF/malformed shapes rejected); key formats; `getVapidConfig` fail-closed cases; `sendPush` options and 404/410/500/throw handling; cron-secret checks (wrong, malformed, unset, short) |
+| `tests/notifications.test.mts` | Preferences defaults/partial updates; subscriptions refresh/limit/move/takeover refusal/own-only delete; sweep: once per day, overlapping runs, buddy name both sides, timezone, custom times, rest/unscheduled/logged/outside-window, 410 cleanup, failures not retried, broken user isolated, pruning |
+| `tests/notification-routes.test.mts` | Every status code of the three routes; mass-assignment and SSRF bodies; proxy public/private paths for the new routes and SW chunks; settings page props (never the private key) |
+| `tests/push-client.test.mts` | VAPID key decoding; support detection; enable/disable flows incl. permission refusal, SW timeout/rejection, server refusal (browser unsubscribed again), network errors; `browserPushEnv` |
+| `tests/notification-settings.test.mts` | The settings card in jsdom: unsupported/unconfigured/blocked states, on→off, existing subscription, toggles and time edits PATCH only the changed field, revert on error, unmount race |
+| `tests/worker.test.mts` | `safeAppPath` (open-redirect shapes); payload fallbacks and truncation; focus-or-open; listener wiring; the entry file |
+| `tests/home.test.mts` | `buildWeekStrip` (past by logs, future by schedule, off-schedule log, today); `summarizeEffort` (last 7, week-start boundary, null growth); `formatVolume`; `loadSessionVolumes` SQL (sums, empty session, incomplete and other users excluded, ordering); `weeklyScoreChange` |
+| `tests/home-components.test.mts` | jsdom: `Trend` tones, `WeekStrip` colours + aria labels, `EffortCard` padding/scaling/min fill/labels/summary, `ActivityTimeline` + empty state, `GymScoreCard` Log ↔ Edit (`next/link` mocked) |
+| `tests/notify-cron.test.mts` | `triggerSweep` success/failure/https rule; the CLI's exit codes and output; importing it doesn't run it |
 
-**Not covered yet:** route handlers directly (session plus HTTP status codes), auth/lockout, buddy pairing, `ensureScoresUpToDate` milestones, attendance, and UI components.
+**Coverage:** `npm run test:coverage` enforces **100% statements, branches, functions and lines** for the notification feature's files and the home screen's `lib/home.ts` + tested `components/home/*` (listed in `.c8rc.json`; `BuddyScoreCard` and the page itself are left out because tsx can't import the static PNG). Current result: 100/100/100/100.
+
+> **Why `scripts/test-coverage.mjs` and not plain `c8 npm test`:** in this CommonJS package, tsx compiles each `.ts` to CommonJS. When an ESM test imports one, tsx loads it twice (`file.ts` and `file.ts?tsx-commonjs-export-preparse=1`, only one of which runs), and its CJS helpers shift the source maps. c8 then reports covered code as uncovered, wrongly. The script copies the sources into `coverage/esm-sandbox/` with `"type": "module"` and links `node_modules`, then measures there, where the numbers are exact. The repo itself can't switch to ESM because `next.config.ts` is loaded as CommonJS. The script removes only the `node_modules` *link* and refuses to delete anything that isn't one.
+
+**Not covered yet:** auth/lockout, buddy pairing, `ensureScoresUpToDate` milestones, attendance, and the other UI components and routes.
 
 ---
 
@@ -787,6 +1043,7 @@ flowchart LR
     RW --> I["npm install<br/>(postinstall: prisma generate)"] --> BD["npm run build"] --> ST["npm run start<br/>prisma migrate deploy → next start"]
     ST --> PG[("Railway Postgres<br/>DATABASE_URL reference")]
     CLI["railway run npm run db:seed<br/>(one-time per fresh DB)"] --> PG
+    CRON["notify-cron service (same repo)<br/>cron */15 * * * *<br/>npm run cron:notify"] -- "POST /api/cron/notifications<br/>Bearer CRON_SECRET" --> ST
 ```
 
 ---
@@ -799,8 +1056,12 @@ flowchart LR
 | `JWT_SECRET` | `lib/session.ts` | Required; throws if missing. Changing it logs everyone out. |
 | `SEED_USER{1,2}_USERNAME` / `_PASSWORD` / `_NAME` | `prisma/seed.ts` only | Re-seeding updates the password and display name |
 | `NODE_ENV` | cookie `secure`, Prisma logging, PWA enablement | Set by Next |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `lib/push.ts` | Optional; notifications are off unless both are valid. Generate once with `npx web-push generate-vapid-keys`. Only the public key reaches browsers. Rotating them invalidates every device's subscription. |
+| `VAPID_SUBJECT` | `lib/push.ts` | `mailto:…` or `https://…`; push services use it as a contact |
+| `CRON_SECRET` | `lib/cron-auth.ts`, `scripts/notify-cron.mjs` | ≥ 32 chars or the cron endpoint stays closed |
+| `APP_URL` | `scripts/notify-cron.mjs` only | The app's public `https://` URL, set on the cron service |
 
-`.env*` is gitignored. `.env.example` documents the shape. **Never commit secrets or keys.**
+`.env*` is gitignored except `.env.example`, which documents the shape with placeholders. **Never commit secrets or keys.**
 
 ---
 
@@ -818,6 +1079,15 @@ flowchart LR
 | 8 | UI kit | `ProgressRing` isn't used anywhere. |
 | 9 | Session | There's no way to revoke a token on the server; logout only clears the cookie. |
 | 10 | Backlog | The UX/design backlog lives in `duo-tickets.md` (DUO-001…020). |
+| 11 | Tests / PGlite | **A failed SQL statement (e.g. a unique violation) breaks the PGlite socket connection** for the rest of the test file, and Prisma doesn't even report `P2002`. Avoid exceptions as control flow in code under test: prefer `createMany({ skipDuplicates: true })` (`ON CONFLICT DO NOTHING`), as `claimDelivery` does. |
+| 12 | Tests / coverage | Plain `c8` over `tsx` misreports coverage in this CommonJS package. Use `npm run test:coverage` ([§13](#13-testing)). |
+| 13 | Notifications | Don't work in `next dev`: the service worker is disabled there. Test with `npm run build && npm run start`. |
+| 14 | Notifications | iPhone only gets push in the Home Screen app (iOS 16.4+). In a Safari tab the card says the browser isn't supported. |
+| 15 | Notifications | Rotating the VAPID keys orphans every existing subscription. Push services reject them, the sweep deletes them on 404/410, and each person has to turn notifications on again. |
+| 16 | Security | `railway-key.txt` / `railway-key.txt.pub` are **tracked in git**. If that's a private key, it's exposed to anyone with repo access, including in history: rotate it, then remove it (`git rm --cached`, add to `.gitignore`). |
+| 17 | Dependencies | `npm audit --omit=dev` (2026-10-08) reports pre-existing advisories, including **critical** in `next` and high in `sharp`, `prisma`, `@ducanh2912/next-pwa`. None come from `web-push`. Upgrade separately and re-run the build. |
+| 18 | Home / assets | Everything under `public/` except `icons/`, `images/`, `manifest.json` and `sw.js` goes through `proxy.ts`. So the buddy avatar is **imported statically** (`import avatar from "@/public/3D-image/…"`), which serves it from `/_next/static/media`. A plain `/3D-image/…` URL would redirect logged-out requests to `/login`. |
+| 19 | Home | The week strip colours past days by **logs**, while the History heatmap uses the **current schedule** ([§9.8](#98-history--attendance)). A missed gym day is black on home and "missed" on History. |
 
 ---
 

@@ -1,0 +1,35 @@
+{
+  "all": true,
+  "src": [
+    "."
+  ],
+  "include": [
+    "lib/notification-rules.ts",
+    "lib/notifications.ts",
+    "lib/push.ts",
+    "lib/push-client.ts",
+    "lib/cron-auth.ts",
+    "worker/**/*.ts",
+    "app/api/notifications/**/*.ts",
+    "app/api/cron/**/*.ts",
+    "app/(app)/settings/page.tsx",
+    "components/settings/NotificationSettings.tsx",
+    "proxy.ts",
+    "scripts/notify-cron.mjs",
+    "lib/home.ts",
+    "components/home/HomeCard.tsx",
+    "components/home/WeekStrip.tsx",
+    "components/home/EffortCard.tsx",
+    "components/home/ActivityTimeline.tsx",
+    "components/home/GymScoreCard.tsx"
+  ],
+  "reporter": [
+    "text",
+    "html"
+  ],
+  "check-coverage": true,
+  "lines": 100,
+  "branches": 100,
+  "functions": 100,
+  "statements": 100
+}

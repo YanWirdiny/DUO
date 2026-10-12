@@ -24,6 +24,18 @@
 
   --shadow-soft: 0 1px 2px rgba(2, 1, 10, 0.04), 0 8px 24px -12px rgba(2, 1, 10, 0.12);
   --shadow-raised: 0 2px 8px rgba(2, 1, 10, 0.06), 0 16px 40px -16px rgba(2, 1, 10, 0.18);
+
+  /* Home redesign palette (Figma). Ink/on-ink flip in dark mode so "black" rest days stay visible. */
+  --canvas: #eeeeec;
+  --card: #f8f8f6;
+  --chip: #ffffff;
+  --ink: #1a1a1a;
+  --on-ink: #ffffff;
+  --ink-faint: #8e8e8b;
+  --track: #e2e2df;
+  --today: #dcdcd9;
+  --hairline: #d6d6d3;
+  --brand: #e53935;
 }
 
 /* Dark theme via OS preference, unless the user explicitly picked light. */
@@ -51,6 +63,17 @@
 
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px -12px rgba(0, 0, 0, 0.45);
     --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.25), 0 16px 40px -16px rgba(0, 0, 0, 0.55);
+
+    --canvas: #111110;
+    --card: #1c1c1b;
+    --chip: #262624;
+    --ink: #f2f2ef;
+    --on-ink: #1a1a1a;
+    --ink-faint: #8e8e8b;
+    --track: #2e2e2c;
+    --today: #4a4a47;
+    --hairline: #3a3a38;
+    --brand: #ef5350;
   }
 }
 
@@ -78,6 +101,17 @@
 
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px -12px rgba(0, 0, 0, 0.45);
   --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.25), 0 16px 40px -16px rgba(0, 0, 0, 0.55);
+
+  --canvas: #111110;
+  --card: #1c1c1b;
+  --chip: #262624;
+  --ink: #f2f2ef;
+  --on-ink: #1a1a1a;
+  --ink-faint: #8e8e8b;
+  --track: #2e2e2c;
+  --today: #4a4a47;
+  --hairline: #3a3a38;
+  --brand: #ef5350;
 }
 
 /* Maps the theme variables above to Tailwind's `--color-*`/`--font-*` tokens for use in classes. */
@@ -98,8 +132,20 @@
   --color-success-soft: var(--success-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-canvas: var(--canvas);
+  --color-card: var(--card);
+  --color-chip: var(--chip);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-ink-faint: var(--ink-faint);
+  --color-track: var(--track);
+  --color-today: var(--today);
+  --color-hairline: var(--hairline);
+  --color-brand: var(--brand);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-dm: var(--font-dm-sans);
+  --font-dm-mono: var(--font-dm-mono-face);
 }
 
 * {
