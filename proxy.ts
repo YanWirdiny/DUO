@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
-const PUBLIC_PATHS = ["/login", "/manifest.json", "/sw.js", "/offline.html"];
+// /api/cron/notifications has no session: it checks its own CRON_SECRET bearer token.
+const PUBLIC_PATHS = ["/login", "/manifest.json", "/sw.js", "/offline.html", "/api/cron/notifications"];
+
+// Static chunks next-pwa generates next to sw.js and the SW imports at install time
+// (including worker-*.js, the push handler built from worker/index.ts).
+const SW_CHUNK = /^\/(workbox|swe-worker|worker|fallback)-[A-Za-z0-9_-]+\.js$/;
 
 /**
  * Edge-runtime request gate: allows public paths through, redirects an already
@@ -13,6 +18,7 @@ export async function proxy(req: NextRequest) {
 
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
+    SW_CHUNK.test(pathname) ||
     pathname.startsWith("/icons/") ||
     pathname.startsWith("/images/") ||
     pathname.startsWith("/api/auth/login");

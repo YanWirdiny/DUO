@@ -23,6 +23,8 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  // Home carries its own title + avatar header and sits on the warm canvas from the Figma redesign.
+  const isHome = pathname === "/";
 
   /** Clears the session cookie, then hard-redirects to /login and refreshes server state. */
   async function handleLogout() {
@@ -32,7 +34,7 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-dvh md:flex">
+    <div className={cn("min-h-dvh md:flex", isHome && "bg-canvas")}>
       <SplashScreen />
 
       {/* Desktop sidebar */}
@@ -90,7 +92,7 @@ export function AppShell({
 
       {/* Main content */}
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-surface px-5 py-4 md:hidden">
+        <header className={cn("flex items-center justify-between border-b border-border bg-surface px-5 py-4 md:hidden", isHome && "hidden")}>
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element -- small static local icon, not worth next/image's overhead */}
             <img src="/icons/logoGym.png" alt="" className="h-8 w-8 rounded-xl object-cover" />
@@ -105,12 +107,12 @@ export function AppShell({
           </Link>
         </header>
 
-        <main className="flex-1 px-4 pb-24 pt-5 md:px-8 md:pb-10 md:pt-8">
+        <main className="flex-1 px-4 pb-32 pt-5 md:px-8 md:pb-10 md:pt-8">
           <div className="mx-auto w-full max-w-3xl">{children}</div>
         </main>
 
-        {/* Mobile bottom nav */}
-        <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-surface/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        {/* Mobile bottom nav: floating pill of round icon buttons (Figma tab bar). */}
+        <nav className="fixed inset-x-5 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex h-[68px] items-center justify-between rounded-[34px] bg-chip px-6 shadow-[var(--shadow-raised)] md:hidden">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
@@ -118,13 +120,14 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
-                  active ? "text-accent" : "text-text-faint"
+                  "flex size-11 items-center justify-center rounded-full bg-chip text-ink transition-colors",
+                  active ? "border-[1.5px] border-ink" : "border border-hairline"
                 )}
               >
-                <Icon size={20} />
-                {item.label}
+                <Icon size={20} strokeWidth={1.75} />
               </Link>
             );
           })}

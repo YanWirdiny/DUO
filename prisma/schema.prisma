@@ -27,18 +27,23 @@ enum ScoreEventType {
   BUDDY_PENALTY
 }
 
+enum NotificationType {
+  GYM_DAY
+  LOG_REMINDER
+}
+
 /// An account: credentials, profile, and the running score/streak totals.
 model User {
-  id           String  @id @default(cuid())
-  username     String  @unique
+  id           String @id @default(cuid())
+  username     String @unique
   passwordHash String
   displayName  String
-  timezone     String  @default("America/New_York")
-  avatarColor  String  @default("#7C5CFC")
+  timezone     String @default("America/New_York")
+  avatarColor  String @default("#7C5CFC")
 
-  gymScore      Int      @default(0)
-  currentStreak Int      @default(0)
-  longestStreak Int      @default(0)
+  gymScore          Int       @default(0)
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
   lastEvaluatedDate DateTime? // watermark: missed-day evaluation has run through this date
 
   failedLoginCount Int       @default(0)
@@ -52,6 +57,10 @@ model User {
   scoreEvents  ScoreEvent[]
   lateLogs     LateLog[]
   pairingCode  PairingCode?
+
+  notificationPreference NotificationPreference?
+  pushSubscriptions      PushSubscription[]
+  notificationDeliveries NotificationDelivery[]
 
   pairAsUserA BuddyPair? @relation("PairA")
   pairAsUserB BuddyPair? @relation("PairB")
@@ -168,4 +177,47 @@ model LateLog {
 
   @@unique([userId, targetDate])
   @@index([userId, weekStart])
+}
+
+/// Which reminders a user wants and when, as minutes after local midnight in their
+/// timezone. No row means the defaults in NOTIFICATIONS (lib/notifications.ts).
+model NotificationPreference {
+  userId             String   @id
+  gymDayEnabled      Boolean  @default(true)
+  gymDayMinute       Int      @default(480) // 08:00
+  logReminderEnabled Boolean  @default(true)
+  logReminderMinute  Int      @default(1200) // 20:00
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// One browser/device that agreed to receive Web Push for a user. `endpoint` is the
+/// push-service URL the browser handed out; `p256dh`/`auth` encrypt the payload.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A reminder already sent: at most one per user, type and local day. The unique
+/// key is what makes the cron sweep idempotent and safe to run concurrently.
+model NotificationDelivery {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  date      DateTime // the user's local day, date-only midnight UTC
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, date])
+  @@index([createdAt])
 }

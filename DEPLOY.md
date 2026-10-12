@@ -40,6 +40,14 @@ Still in the app service's **Variables** tab, add:
 
 `DATABASE_URL` doesn't need to be added manually — that's the reference from step 3.
 
+For **notifications** (optional — without these the Notifications card says it isn't set up), also add:
+
+| Variable | Value |
+|---|---|
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Run `npx web-push generate-vapid-keys` once on your machine and paste both. Keep the private key secret. Changing the pair later invalidates every device: each person must turn notifications off and on again. |
+| `VAPID_SUBJECT` | `mailto:you@example.com` (push services use it to contact you) |
+| `CRON_SECRET` | Another long random string (same command as `JWT_SECRET`), **at least 32 characters** or the cron endpoint stays closed |
+
 ## 5. Deploy
 
 Trigger a deploy (Railway does this automatically on push, or click **Deploy** in the dashboard). On success, Railway runs:
@@ -69,6 +77,19 @@ That connects to the real production `DATABASE_URL` and creates (or updates) the
 
 **Settings → Networking → Generate Domain** on the app service gives you a public `*.up.railway.app` URL (HTTPS by default, which the PWA needs). Open it, log in with either seeded account, and confirm both of you can see the dashboard.
 
+## 8. Schedule the notification sweep
+
+Reminders are sent by `POST /api/cron/notifications`, which must be called every 15 minutes. Railway runs it as a separate cron service from the same repo:
+
+1. In the project, **New → GitHub Repo** → the same repo. Name the service e.g. `notify-cron`.
+2. **Settings → Deploy → Custom Start Command**: `npm run cron:notify`
+3. **Settings → Cron Schedule**: `*/15 * * * *`
+4. **Variables**: `APP_URL` = the app's public URL from step 7 (must be `https://`), and `CRON_SECRET` as a **reference** to the app service's `CRON_SECRET`.
+
+Each run prints a summary like `[notify-cron] {"checked":2,"due":1,"sent":1,"failed":0,"removed":0,"errors":0}` and exits non-zero on failure, so failed runs show up red in Railway. Running it more often, or twice at once, is safe: each reminder goes out at most once per person per day.
+
+To test by hand: `APP_URL=https://… CRON_SECRET=… npm run cron:notify`.
+
 ## Installing as an app (PWA)
 
 Once it's live on HTTPS:
@@ -78,5 +99,5 @@ Once it's live on HTTPS:
 ## Notes
 
 - **Only 2 accounts, ever.** There's no public sign-up page by design — accounts only come from the seed step above.
-- **Push notifications aren't built yet.** The PWA shell (installable, offline app-shell caching) is in place so this can be added later without restructuring.
+- **Notifications need the installed app on iPhone.** iOS only allows web push for sites added to the Home Screen (iOS 16.4+). Open Duo from the Home Screen icon, then turn notifications on in Settings. Android and desktop browsers work straight from the browser.
 - **Local dev uses a different, throwaway database.** See the main README/CLAUDE notes for running `node scripts/dev-db.mjs` locally — none of that applies to Railway, which uses its own real Postgres.

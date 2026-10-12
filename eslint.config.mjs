@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
     "public/sw.js",
     "public/swe-worker*.js",
     "public/workbox-*.js",
+    "public/worker-*.js",
+    "public/fallback-*.js",
+    // Test coverage output, including the ESM sandbox copy of the sources.
+    "coverage/**",
   ]),
 ]);
 
